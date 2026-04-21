@@ -13,6 +13,7 @@
 import { NButton, NEmpty, NScrollbar, NSpin, NTag, NTooltip } from 'naive-ui';
 import SvgIcon from '@/components/custom/svg-icon.vue';
 import { fetchSessionMessages } from '@/service/api';
+import { VueMarkdownIt } from '@/vendor/vue-markdown-shiki';
 import { mapServerMessages, useAgentSessionStore } from './session-bus';
 
 interface Props {
@@ -246,8 +247,8 @@ function roleLabel(role: string) {
     </div>
 
     <!-- Message list -->
-    <NSpin :show="loadingHistory" class="h-0 flex-auto">
-      <NScrollbar ref="scrollRef" style="max-height: 100%; height: 100%">
+    <NSpin :show="loadingHistory" class="h-0 flex-auto" content-class="h-full" content-style="height: 100%">
+      <NScrollbar ref="scrollRef" class="h-full">
         <div class="flex-col gap-16px px-24px py-16px">
           <div v-if="messages.length === 0" class="py-12">
             <NEmpty description="这是一段全新的 AI 记忆，从下面开始聊吧">
@@ -270,10 +271,15 @@ function roleLabel(role: string) {
               {{ roleLabel(msg.role) }}
             </div>
             <div
-              class="max-w-[80%] whitespace-pre-wrap break-words rounded-10px px-14px py-10px text-14px leading-[1.7]"
-              :class="msg.role === 'user' ? 'bg-primary-1 dark:bg-#3a4a5e' : 'bg-#f3f4f6 dark:bg-#262a31'"
+              class="max-w-[80%] break-words rounded-10px px-14px py-10px text-14px leading-[1.7]"
+              :class="[
+                msg.role === 'user' ? 'bg-primary-1 whitespace-pre-wrap dark:bg-#3a4a5e' : 'bg-#f3f4f6 dark:bg-#262a31'
+              ]"
             >
               <span v-if="!msg.content && msg.status === 'pending'" class="text-stone-400">思考中…</span>
+              <template v-else-if="msg.role === 'assistant'">
+                <VueMarkdownIt :content="msg.content" />
+              </template>
               <span v-else>{{ msg.content }}</span>
               <span v-if="msg.status === 'streaming'" class="ml-1 animate-pulse">▌</span>
             </div>

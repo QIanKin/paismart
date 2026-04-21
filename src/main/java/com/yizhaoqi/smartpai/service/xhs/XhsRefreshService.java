@@ -145,6 +145,7 @@ public class XhsRefreshService {
         String displayName = null;
         String avatarUrl = null;
         String region = null;
+        String bio = null;
         if (userStats != null) {
             followers = asLong(userStats.get("followers"));
             following = asLong(userStats.get("following"));
@@ -156,6 +157,7 @@ public class XhsRefreshService {
             displayName = str(userStats.get("nickname"));
             avatarUrl = str(userStats.get("avatarUrl"));
             region = str(userStats.get("ipLocation"));
+            bio = str(userStats.get("desc"));
         }
 
         // 从本次拉到的 posts 聚合均赞 / 均评 / engagement
@@ -194,7 +196,7 @@ public class XhsRefreshService {
                 acc.getHandle(),
                 displayName != null ? displayName : acc.getDisplayName(),
                 avatarUrl,
-                null,
+                bio,
                 followers,
                 following,
                 likesTotal,
