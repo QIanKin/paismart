@@ -176,7 +176,6 @@ const local: App.I18n.Schema = {
     'personal-center': '个人中心',
     recharge: '余额充值',
     'recharge-manage': '充值管理',
-    'xhs-cookies': '小红书 Cookie',
     'data-sources': '数据源中心'
   },
   page: {

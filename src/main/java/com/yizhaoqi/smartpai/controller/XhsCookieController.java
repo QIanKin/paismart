@@ -6,6 +6,7 @@ import com.yizhaoqi.smartpai.config.XhsLoginProperties;
 import com.yizhaoqi.smartpai.model.xhs.XhsLoginSession;
 import com.yizhaoqi.smartpai.service.agent.AgentUserResolver;
 import com.yizhaoqi.smartpai.service.xhs.CookieCipher;
+import com.yizhaoqi.smartpai.service.xhs.XhsCookieHealthService;
 import com.yizhaoqi.smartpai.service.xhs.XhsCookieService;
 import com.yizhaoqi.smartpai.service.xhs.XhsLoginSessionService;
 import com.yizhaoqi.smartpai.utils.JwtUtils;
@@ -43,19 +44,22 @@ public class XhsCookieController {
     private final CookieCipher cipher;
     private final XhsLoginSessionService loginService;
     private final XhsLoginProperties loginProps;
+    private final XhsCookieHealthService healthService;
 
     public XhsCookieController(XhsCookieService service,
                                AgentUserResolver userResolver,
                                JwtUtils jwtUtils,
                                CookieCipher cipher,
                                XhsLoginSessionService loginService,
-                               XhsLoginProperties loginProps) {
+                               XhsLoginProperties loginProps,
+                               XhsCookieHealthService healthService) {
         this.service = service;
         this.userResolver = userResolver;
         this.jwtUtils = jwtUtils;
         this.cipher = cipher;
         this.loginService = loginService;
         this.loginProps = loginProps;
+        this.healthService = healthService;
     }
 
     @GetMapping
@@ -129,6 +133,28 @@ public class XhsCookieController {
         User u = resolveUser(auth);
         return service.delete(id, u.getPrimaryOrg())
                 ? ok(Map.of("deleted", true)) : notFound();
+    }
+
+    /**
+     * 用该 cookie 实际调一次平台轻量 API 测活；失败不降权、不污染线上调度。
+     *
+     * 详见 {@link XhsCookieHealthService}：对 xhs_pc/creator/pgy/qianfan 发起 GET，
+     * 对 xhs_spotlight 做离线 expiresAt 判断，对 xhs_competitor 做 Supabase HEAD 探测。
+     */
+    @PostMapping("/{id}/ping")
+    public ResponseEntity<Object> ping(@RequestHeader("Authorization") String auth,
+                                       @PathVariable Long id) {
+        User u = resolveUser(auth);
+        XhsCookieHealthService.PingResult r = healthService.ping(id, u.getPrimaryOrg());
+        if (r == null) return notFound();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("ok", r.ok());
+        data.put("latencyMs", r.latencyMs());
+        data.put("errorType", r.errorType());
+        data.put("message", r.message());
+        data.put("platformSignal", r.platformSignal());
+        data.put("checkedAt", r.checkedAt() == null ? null : r.checkedAt().toString());
+        return ok(data);
     }
 
     // ---------- 扫码登录（QR login） ----------

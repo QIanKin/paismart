@@ -182,8 +182,7 @@ const routeMap: RouteMap = {
   "recharge": "/recharge",
   "recharge-manage": "/recharge-manage",
   "usage-monitor": "/usage-monitor",
-  "user": "/user",
-  "xhs-cookies": "/xhs-cookies"
+  "user": "/user"
 };
 
 /**

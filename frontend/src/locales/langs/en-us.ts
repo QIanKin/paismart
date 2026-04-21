@@ -176,7 +176,6 @@ const local: App.I18n.Schema = {
     'personal-center': 'Personal Center',
     recharge: 'Recharge',
     'recharge-manage': 'Recharge Management',
-    'xhs-cookies': 'XHS Cookies',
     'data-sources': 'Data Sources'
   },
   page: {

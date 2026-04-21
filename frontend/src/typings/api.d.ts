@@ -878,6 +878,21 @@ declare namespace Api {
       finishedAt: string;
     }
 
+    /** /ping 连通性测试返回 —— 后端用当前 cookie 实际打一条平台轻量 API 验活。 */
+    interface CookiePingResult {
+      ok: boolean;
+      /** 平台轻量 API 的往返耗时（ms）。 */
+      latencyMs?: number | null;
+      /** 失败时的分类：cookie_invalid / network / http_4xx / http_5xx / unsupported_platform / internal。 */
+      errorType?: string | null;
+      /** 失败时的简短说明，面向业务员展示。 */
+      message?: string | null;
+      /** 成功时带一点平台返回的可识别信号（比如 user_id 或 advertiser_id），便于目视确认。 */
+      platformSignal?: string | null;
+      /** 后端把测试结果也写回了 xhs_cookies.lastCheckedAt，所以刷新列表后可见。 */
+      checkedAt?: string | null;
+    }
+
     /** WebSocket 单帧 payload —— 和后端 XhsLoginWebSocketHandler 写出去的结构对齐。 */
     interface LoginWsFrame {
       type:

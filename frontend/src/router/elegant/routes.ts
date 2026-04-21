@@ -242,18 +242,5 @@ export const generatedRoutes: GeneratedRoute[] = [
       roles: ['ADMIN'],
       order: 90
     }
-  },
-  {
-    name: 'xhs-cookies',
-    path: '/xhs-cookies',
-    component: 'layout.base$view.xhs-cookies',
-    meta: {
-      title: 'xhs-cookies',
-      i18nKey: 'route.xhs-cookies',
-      icon: 'solar:cookies-bold-duotone',
-      roles: ['ADMIN'],
-      hideInMenu: true,
-      activeMenu: 'data-sources'
-    }
   }
 ];

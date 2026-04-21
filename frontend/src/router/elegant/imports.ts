@@ -35,5 +35,4 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   recharge: () => import("@/views/recharge/index.vue"),
   "usage-monitor": () => import("@/views/usage-monitor/index.vue"),
   user: () => import("@/views/user/index.vue"),
-  "xhs-cookies": () => import("@/views/xhs-cookies/index.vue"),
 };

@@ -5,16 +5,20 @@ import { useAuthStore } from '@/store/modules/auth';
 import { fetchXhsLoginCancel, fetchXhsLoginStart, fetchXhsLoginStatus } from '@/service/api';
 
 /**
- * 小红书扫码登录弹窗。
+ * 小红书扫码登录弹窗（共享组件）。
+ *
+ * 原位置：views/xhs-cookies/modules/qr-login-modal.vue
+ * 2026-04-21 搬到 data-sources/modules/_shared/ 后可被任意数据源面板复用；
+ * 老 xhs-cookies 页已下线，本文件是唯一一份实现。
  *
  * 交互流程：
- *   1. 用户点"扫码登录"按钮 → 父组件 v-model:show = true
- *   2. 本组件 onShow 触发 start()，调 /admin/xhs-cookies/qr-login 拿到 sessionId
+ *   1. 用户点"扫码登录" → 父组件 v-model:show = true
+ *   2. onShow 触发 start()：POST /admin/xhs-cookies/qr-login 拿 sessionId
  *   3. 建立 WebSocket /proxy-ws/ws/xhs-login/{token}?session=xxx，订阅事件流
- *   4. 依次渲染 QR 图、状态文案；success 时提示刷新，error/expired/cancel 时给重试入口
- *   5. 关闭弹窗或组件销毁时：若会话还在跑，发 POST /cancel + 关闭 WS
+ *   4. 依次渲染 QR 图、状态；success 后提示刷新；error/expired/cancel 给重试入口
+ *   5. 关闭弹窗 / 组件销毁时：若会话还在跑，发 POST /cancel + 关闭 WS
  *
- * 注意：本组件不直接刷新父表格，成功时 emit('success')，由父组件拉 fetchXhsCookieList。
+ * 成功时 emit('success')，由父组件刷新列表。
  */
 defineOptions({ name: 'QrLoginModal' });
 
@@ -73,7 +77,6 @@ const progressPct = computed(() => {
   return Math.min(100, Math.round(((totalSecs.value - remainSecs.value) / totalSecs.value) * 100));
 });
 
-/** 从 ISO 时间戳算出距离过期还剩多少秒；过期的话返回 0。 */
 function computeRemainSecs(expiresAt: string): number {
   const t = Date.parse(expiresAt);
   if (Number.isNaN(t)) return totalSecs.value;
@@ -240,7 +243,6 @@ watch(
     if (v) {
       await start();
     } else {
-      // 关闭弹窗时若还在跑则取消
       if (sessionId.value && !isTerminal.value) {
         fetchXhsLoginCancel(sessionId.value);
       }
@@ -279,7 +281,6 @@ defineExpose({ pollOnce });
         四个平台的 Cookie 自动入池。
       </div>
 
-      <!-- 二维码展示 -->
       <div
         class="relative h-240px w-240px flex items-center justify-center rd-8px bg-stone-50 dark:bg-stone-800"
       >
@@ -298,7 +299,6 @@ defineExpose({ pollOnce });
           <span v-else>等待二维码…</span>
         </div>
 
-        <!-- 终态遮罩 -->
         <div
           v-if="isTerminal"
           class="absolute inset-0 flex items-center justify-center rd-8px bg-black/50 text-14px text-white"
@@ -307,7 +307,6 @@ defineExpose({ pollOnce });
         </div>
       </div>
 
-      <!-- 状态 + 倒计时 -->
       <div class="w-full flex-col gap-6px">
         <div class="flex items-center justify-between">
           <NTag :type="STATUS_LABELS[status].type" :bordered="false">
@@ -324,7 +323,6 @@ defineExpose({ pollOnce });
         />
       </div>
 
-      <!-- 成功后的平台清单 -->
       <div v-if="status === 'SUCCESS'" class="w-full flex flex-wrap items-center gap-2 text-12px">
         <span class="op-70">已采集：</span>
         <NTag v-for="p in capturedPlatforms" :key="p" type="success" size="small" :bordered="false">
@@ -342,7 +340,6 @@ defineExpose({ pollOnce });
         </template>
       </div>
 
-      <!-- 错误展示 -->
       <div
         v-if="errorMessage && (status === 'FAILED' || status === 'EXPIRED')"
         class="w-full rd-6px bg-red-50 p-8px text-12px text-red-700 dark:bg-red-900/20 dark:text-red-300"

@@ -43,6 +43,17 @@ export function fetchXhsCookieValidate(cookie: string) {
   });
 }
 
+/**
+ * 连通性测试：用该 cookie 去打一次平台轻量 API（如 /user/me），验活不降权。
+ * 测试失败不会把 cookie 标 EXPIRED，避免"测试本身"污染线上状态。
+ */
+export function fetchXhsCookiePing(id: number) {
+  return request<Api.Xhs.CookiePingResult>({
+    url: `/admin/xhs-cookies/${id}/ping`,
+    method: 'post'
+  });
+}
+
 // ---------- 扫码登录 ----------
 
 /**
