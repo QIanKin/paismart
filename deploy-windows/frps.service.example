@@ -1,0 +1,25 @@
+# ============================================================
+# frps 的 systemd 服务文件（放到你的 VPS 上）
+#
+# 安装步骤：
+#   sudo cp frps.service.example /etc/systemd/system/frps.service
+#   # 按需修改下面的 ExecStart 路径
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now frps
+#   sudo systemctl status frps
+# ============================================================
+
+[Unit]
+Description = frp server
+After = network.target
+
+[Service]
+Type = simple
+User = nobody
+Restart = on-failure
+RestartSec = 5s
+# 改成你 frps 实际的路径
+ExecStart = /usr/local/bin/frps -c /etc/frp/frps.toml
+
+[Install]
+WantedBy = multi-user.target

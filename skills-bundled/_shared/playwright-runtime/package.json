@@ -1,0 +1,9 @@
+{
+  "name": "smartpai-playwright-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "skills-bundled 公共 Playwright 运行时。只做 CDP client (connectOverCDP)，不下载 Chromium 二进制。由 xhs-outreach-comment / qiangua-brand-discover 等 skill 的 .mjs 脚本通过 NODE_PATH 解析到。",
+  "dependencies": {
+    "playwright": "^1.47.0"
+  }
+}

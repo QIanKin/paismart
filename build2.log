@@ -1,0 +1,120 @@
+﻿docker :  Image paismart-backend:latest Building 
+所在位置 C:\Users\a0823\AppData\Local\Temp\ps-script-8ed4cf55-d7ec-472c-be95-25fdde56b3fd.ps1:87 字符: 55
++ ... Out-String; docker compose -f docker-compose.prod.yml build backend 2 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Image paismart-backend:latest Building :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+#1 [internal] load local bake definitions
+#1 reading from stdin 541B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 5.63kB 0.0s done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/maven:3.9-eclipse-temurin-17
+#3 DONE 0.0s
+
+#4 [internal] load metadata for docker.io/library/eclipse-temurin:17-jdk-jammy
+#4 ...
+
+#5 [auth] library/eclipse-temurin:pull token for registry-1.docker.io
+#5 DONE 0.0s
+
+#4 [internal] load metadata for docker.io/library/eclipse-temurin:17-jdk-jammy
+#4 DONE 2.3s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 378B done
+#6 DONE 0.0s
+
+#7 [stage-1  1/12] FROM docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:978ed38b7785312f7761bee5e24cfcd7ac2fe466c5f07acee7b322e0bae6d0ec
+#7 resolve docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:978ed38b7785312f7761bee5e24cfcd7ac2fe466c5f07acee7b322e0bae6d0ec 0.0s done
+#7 DONE 0.0s
+
+#8 [builder 1/8] FROM docker.io/library/maven:3.9-eclipse-temurin-17@sha256:674de0df5a38cfe793a587829a181835f8af3ea1f556be7172e0aa547274bcc9
+#8 resolve docker.io/library/maven:3.9-eclipse-temurin-17@sha256:674de0df5a38cfe793a587829a181835f8af3ea1f556be7172e0aa547274bcc9 0.0s done
+#8 DONE 0.0s
+
+#9 [internal] load build context
+#9 transferring context: 36.09kB 0.0s done
+#9 DONE 0.1s
+
+#10 [builder 4/8] COPY pom.xml .
+#10 CACHED
+
+#11 [builder 8/8] RUN mvn -B -e clean package spring-boot:repackage -DskipTests
+#11 CACHED
+
+#12 [builder 2/8] WORKDIR /build
+#12 CACHED
+
+#13 [stage-1  3/12] WORKDIR /app
+#13 CACHED
+
+#14 [builder 3/8] COPY settings-docker.xml /root/.m2/settings.xml
+#14 CACHED
+
+#15 [builder 5/8] RUN mvn -B -e -q dependency:go-offline
+#15 CACHED
+
+#16 [stage-1 10/12] RUN cd /app/skills-bundled/xhs-qr-login     && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 npm install --omit=dev --no-audit --no-fund     && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 PLAYWRIGHT_BROWSERS_PATH=/ms-playwright          node ./node_modules/playwright/cli.js install --with-deps chromium     && npm cache clean --force
+#16 CACHED
+
+#17 [stage-1  2/12] RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g' /etc/apt/sources.list     && apt-get update     && apt-get install -y --no-install-recommends        curl tzdata ca-certificates gnupg        python3 python3-pip python3-venv        ffmpeg     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash -     && apt-get install -y --no-install-recommends nodejs     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime     && echo "Asia/Shanghai" > /etc/timezone     && ln -sf /usr/bin/python3 /usr/local/bin/python     && node --version && npm --version     && rm -rf /var/lib/apt/lists/*
+#17 CACHED
+
+#18 [stage-1  9/12] RUN cd /app/skills-bundled/_shared/playwright-runtime     && npm install --omit=dev --no-audit --no-fund     && npm cache clean --force
+#18 CACHED
+
+#19 [builder 6/8] COPY src ./src
+#19 CACHED
+
+#20 [stage-1  6/12] COPY skills-bundled /app/skills-bundled
+#20 CACHED
+
+#21 [stage-1  8/12] RUN pip3 install --no-cache-dir --break-system-packages yt-dlp     || pip3 install --no-cache-dir yt-dlp
+#21 CACHED
+
+#22 [builder 7/8] COPY docs ./docs
+#22 CACHED
+
+#23 [stage-1  5/12] COPY --from=builder /build/docs /app/docs
+#23 CACHED
+
+#24 [stage-1  4/12] COPY --from=builder /build/target/SmartPAI-*.jar /app/app.jar
+#24 CACHED
+
+#25 [stage-1  7/12] RUN pip3 install --no-cache-dir --break-system-packages        -r /app/skills-bundled/_shared/Spider_XHS/requirements.txt     || pip3 install --no-cache-dir        -r /app/skills-bundled/_shared/Spider_XHS/requirements.txt
+#25 CACHED
+
+#26 [stage-1 11/12] RUN cd /app/skills-bundled/_shared/Spider_XHS     && npm install --no-audit --no-fund     && npm cache clean --force
+#26 CACHED
+
+#27 [stage-1 12/12] RUN mkdir -p /app/var/agent-sandbox /app/skills     && chmod -R 755 /app/var /app/skills
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers done
+#28 exporting manifest sha256:c7e82af48d4a8aa6bc568ed163ba11009621bb08e1547ebb352fd000bdfed492 done
+#28 exporting config sha256:3fbe04bf2279e1d6b59249cbdf5b22da6eb6f5b929a2918ea6953c889388889f done
+#28 exporting attestation manifest sha256:53b7b1534ed581b6bc4d84618ebdc90dfbd5a391c4a23f240dadb99092cc3ae6 0.0s done
+#28 exporting manifest list sha256:43419cc932e4259717c871d295ac0d7ec276f434a4dc3e1160af0625647a3585 done
+#28 naming to docker.io/library/paismart-backend:latest done
+#28 unpacking to docker.io/library/paismart-backend:latest
+#28 unpacking to docker.io/library/paismart-backend:latest 13.7s done
+#28 ERROR: failed to extract layer sha256:294f4c56114fbdf0ea694dc5b2d195b693766c2c2bd00e148275cc6f41c5f646: exit status 1: unpigz: skipping: <stdin>: corrupted -- incomplete deflate data
+
+------
+ > exporting to image:
+------
+failed to solve: failed to extract layer sha256:294f4c56114fbdf0ea694dc5b2d195b693766c2c2bd00e148275cc6f41c5f646: exit 
+status 1: unpigz: skipping: <stdin>: corrupted -- incomplete deflate data
+
+
+
+
+
+View build details: docker-desktop://dashboard/build/default/default/kk1jyoprk38x5ofnntuelrdmq
+

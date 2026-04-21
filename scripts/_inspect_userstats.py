@@ -1,0 +1,10 @@
+import json, sys, pathlib
+p = pathlib.Path(sys.argv[1])
+d = json.loads(p.read_text(encoding="utf-8"))
+us = d.get("userStats")
+print("ok:", d.get("ok"))
+print("fetched:", d.get("fetched"))
+print("posts_len:", len(d.get("posts") or []))
+print("userStats:")
+print(json.dumps(us, ensure_ascii=False, indent=2) if us else "  <none>")
+print("partialErrors:", d.get("partialErrors"))

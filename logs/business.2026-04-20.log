@@ -1,0 +1,502 @@
+2026-04-20 17:05:34.792 [main] INFO  com.yizhaoqi.smartpai.service.ParseServiceTest - Starting ParseServiceTest using Java 17.0.18 with PID 259 (started by root in /build)
+2026-04-20 17:05:34.799 [main] INFO  com.yizhaoqi.smartpai.service.ParseServiceTest - No active profile set, falling back to 1 default profile: "default"
+2026-04-20 17:07:28.359 [main] INFO  com.yizhaoqi.smartpai.client.EmbeddingClient - EmbeddingClient 初始化 - Provider: aliyun, 模型: Qwen/Qwen3-Embedding-0.6B, 批次大小: 100, 维度: 2048, API地址: https://api.siliconflow.cn/v1
+2026-04-20 17:07:32.647 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:07:33.099 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 33 个工具：[ask_user_question, bash, creator_export, creator_get_posts, creator_get, creator_post_batch_upsert, creator_screen, creator_search, creator_upsert, fs_edit, fs_read, fs_write, fs_glob, fs_grep, knowledge_search, list_skills, project_roster_add, project_roster_list, qiangua_brand_discover, schedule_create, schedule_delete, schedule_list, sleep, todo_write, tool_search, use_skill, web_fetch, web_search, xhs_download_video, xhs_fetch_pgy_kol, xhs_outreach_comment, xhs_refresh_creator, xhs_search_notes]
+2026-04-20 17:07:33.353 [main] INFO  c.y.smartpai.service.agent.context.ContextEngine - ContextEngine 启动，已注册 providers: [system_prompt, long_term_memory, active_skills, recent_history, live_turn]
+2026-04-20 17:07:37.915 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:07:37.917 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=10 updated=0 skipped=0 disabled=0 errors=0 registry=10
+2026-04-20 17:07:42.078 [main] INFO  com.yizhaoqi.smartpai.config.SecurityConfig - Security configuration loaded successfully.
+2026-04-20 17:08:29.661 [main] INFO  com.yizhaoqi.smartpai.service.ParseServiceTest - Started ParseServiceTest in 180.265 seconds (process running for 226.682)
+2026-04-20 17:08:29.676 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 检查管理员账号是否存在: admin
+2026-04-20 17:08:29.688 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 开始创建管理员账号: admin
+2026-04-20 17:08:29.805 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 管理员账号 'admin' 创建成功
+2026-04-20 17:08:29.814 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: default
+2026-04-20 17:08:29.830 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: default
+2026-04-20 17:08:29.949 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'default' 创建成功
+2026-04-20 17:08:29.950 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: admin
+2026-04-20 17:08:29.953 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: admin
+2026-04-20 17:08:29.958 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'admin' 创建成功
+2026-04-20 17:08:29.958 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签初始化完成
+2026-04-20 17:08:30.058 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:08:30.059 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:08:33.184 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:08:33.191 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:08:33.203 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:08:33.207 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:08:33.211 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:08:33.546 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - Starting UploadServicePerformanceTest using Java 17.0.18 with PID 259 (started by root in /build)
+2026-04-20 17:08:33.547 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - The following 1 profile is active: "test"
+2026-04-20 17:09:00.483 [paismart-sched-4] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:09:00.484 [paismart-sched-4] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:09:13.304 [main] INFO  com.yizhaoqi.smartpai.client.EmbeddingClient - EmbeddingClient 初始化 - Provider: aliyun, 模型: Qwen/Qwen3-Embedding-0.6B, 批次大小: 100, 维度: 2048, API地址: https://api.siliconflow.cn/v1
+2026-04-20 17:09:13.524 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:09:13.612 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 33 个工具：[ask_user_question, bash, creator_export, creator_get_posts, creator_get, creator_post_batch_upsert, creator_screen, creator_search, creator_upsert, fs_edit, fs_read, fs_write, fs_glob, fs_grep, knowledge_search, list_skills, project_roster_add, project_roster_list, qiangua_brand_discover, schedule_create, schedule_delete, schedule_list, sleep, todo_write, tool_search, use_skill, web_fetch, web_search, xhs_download_video, xhs_fetch_pgy_kol, xhs_outreach_comment, xhs_refresh_creator, xhs_search_notes]
+2026-04-20 17:09:13.692 [main] INFO  c.y.smartpai.service.agent.context.ContextEngine - ContextEngine 启动，已注册 providers: [system_prompt, long_term_memory, active_skills, recent_history, live_turn]
+2026-04-20 17:09:14.138 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:09:14.140 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=10 updated=0 skipped=0 disabled=0 errors=0 registry=10
+2026-04-20 17:09:14.626 [main] INFO  com.yizhaoqi.smartpai.config.SecurityConfig - Security configuration loaded successfully.
+2026-04-20 17:09:30.839 [paismart-sched-4] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:09:30.840 [paismart-sched-4] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:09:54.819 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - Started UploadServicePerformanceTest in 81.524 seconds (process running for 311.849)
+2026-04-20 17:09:54.821 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 检查管理员账号是否存在: admin
+2026-04-20 17:09:54.832 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 开始创建管理员账号: admin
+2026-04-20 17:09:54.918 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 管理员账号 'admin' 创建成功
+2026-04-20 17:09:54.921 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: default
+2026-04-20 17:09:54.926 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: default
+2026-04-20 17:09:54.932 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'default' 创建成功
+2026-04-20 17:09:54.933 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: admin
+2026-04-20 17:09:54.935 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: admin
+2026-04-20 17:09:54.938 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'admin' 创建成功
+2026-04-20 17:09:54.939 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签初始化完成
+2026-04-20 17:09:54.950 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - === UploadService 性能优化说明 ===
+2026-04-20 17:09:54.951 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化前：逐个查询Redis，1000个分片需要1000次网络往返
+2026-04-20 17:09:54.952 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化后：一次性获取bitmap，1000个分片只需要1次网络往返
+2026-04-20 17:09:54.953 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 预期性能提升：约100-1000倍（取决于分片数量和网络延迟）
+2026-04-20 17:09:54.954 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - ==========================================
+2026-04-20 17:09:54.954 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 模拟 1000 个分片的性能对比：
+2026-04-20 17:09:54.955 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化前耗时：3000ms
+2026-04-20 17:09:54.956 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化后耗时：4ms
+2026-04-20 17:09:54.957 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 性能提升：750倍
+2026-04-20 17:09:55.125 [main] INFO  com.yizhaoqi.smartpai.service.UploadService - [uploadChunk] 开始处理分片上传请求 => fileMd5: md5, chunkIndex: 0, totalSize: 1024, fileName: test.pdf, fileType: PDF文档, contentType: application/pdf, fileSize: 4, orgTag: TEAM_A, isPublic: false, userId: 1
+2026-04-20 17:09:55.126 [main] ERROR com.yizhaoqi.smartpai.service.UploadService - 分片上传过程中发生错误 => fileMd5: md5, fileName: test.pdf, fileType: PDF文档, chunkIndex: 0, 错误类型: com.yizhaoqi.smartpai.exception.CustomException, 错误信息: 文件已完成合并，不允许继续上传分片
+com.yizhaoqi.smartpai.exception.CustomException: 文件已完成合并，不允许继续上传分片
+	at com.yizhaoqi.smartpai.service.UploadService.uploadChunk(UploadService.java:87)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.lambda$uploadChunkRejectsWhenFileAlreadyCompleted$0(UploadServiceTest.java:68)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.uploadChunkRejectsWhenFileAlreadyCompleted(UploadServiceTest.java:66)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:767)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$8(TestMethodTestDescriptor.java:217)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:213)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:138)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:68)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:56)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-04-20 17:09:55.137 [main] INFO  com.yizhaoqi.smartpai.service.UploadService - [uploadChunk] 开始处理分片上传请求 => fileMd5: md5, chunkIndex: 0, totalSize: 1024, fileName: test.pdf, fileType: PDF文档, contentType: application/pdf, fileSize: 4, orgTag: TEAM_A, isPublic: false, userId: 1
+2026-04-20 17:09:55.138 [paismart-sched-1] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:09:55.139 [paismart-sched-1] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:09:55.138 [main] ERROR com.yizhaoqi.smartpai.service.UploadService - 分片上传过程中发生错误 => fileMd5: md5, fileName: test.pdf, fileType: PDF文档, chunkIndex: 0, 错误类型: com.yizhaoqi.smartpai.exception.CustomException, 错误信息: 文件正在合并中，请稍后重试
+com.yizhaoqi.smartpai.exception.CustomException: 文件正在合并中，请稍后重试
+	at com.yizhaoqi.smartpai.service.UploadService.uploadChunk(UploadService.java:84)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.lambda$uploadChunkRejectsWhenFileIsMerging$1(UploadServiceTest.java:89)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.uploadChunkRejectsWhenFileIsMerging(UploadServiceTest.java:87)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:767)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$8(TestMethodTestDescriptor.java:217)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:213)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:138)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:68)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:56)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-04-20 17:09:55.420 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Creating private organization tag for user: testuser
+2026-04-20 17:09:55.421 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Private organization tag created successfully for user: testuser
+2026-04-20 17:09:55.422 [main] INFO  com.yizhaoqi.smartpai.service.UserService - User registered successfully with default and private organization tags: testuser
+2026-04-20 17:09:55.504 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Creating private organization tag for user: testuser
+2026-04-20 17:09:55.505 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Private organization tag created successfully for user: testuser
+2026-04-20 17:09:55.507 [main] INFO  com.yizhaoqi.smartpai.service.UserService - User registered successfully with default and private organization tags: testuser
+2026-04-20 17:09:55.567 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Creating default organization tag
+2026-04-20 17:09:55.578 [main] WARN  com.yizhaoqi.smartpai.service.UserService - Registration blocked because registration mode is CLOSED, username: testuser
+2026-04-20 17:09:55.754 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:09:55.807 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-1 created=1 updated=0 skipped=[]
+2026-04-20 17:09:55.809 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-2 created=0 updated=1 skipped=[]
+2026-04-20 17:09:55.812 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:09:55.813 [main] WARN  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin: platform=xhs_pc 缺失必要字段=[web_session]，跳过
+2026-04-20 17:09:55.815 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-x created=1 updated=0 skipped=[xhs_pc:missing=web_session]
+2026-04-20 17:09:55.816 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:09:55.818 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:09:55.820 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-1 created=4 updated=0 skipped=[]
+2026-04-20 17:09:55.822 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:09:55.825 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess created=1 updated=0 skipped=[]
+2026-04-20 17:09:57.928 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 9902305ca4df48b99c68b46baf7bd4e9
+2026-04-20 17:09:58.304 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: e6df76081eed45c0aea2139b69334cc0
+2026-04-20 17:09:58.343 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: b7ec456d55a4487eb0a940444c7c66bb
+2026-04-20 17:09:58.466 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 178db55c348c4ca8b2de51029e4fd6e3
+2026-04-20 17:09:58.516 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 11eb7363bfea47368c49db771713f0d9
+2026-04-20 17:09:58.517 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token refreshed successfully for user: testuser
+2026-04-20 17:09:59.652 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 5d540077b3544eeb9b47358761f52a5e
+2026-04-20 17:09:59.653 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token refreshed successfully for user: testuser
+2026-04-20 17:09:59.711 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: cc8feebf52eb4084b70d7f7646d2cc6f
+2026-04-20 17:18:22.737 [main] INFO  com.yizhaoqi.smartpai.service.ParseServiceTest - Starting ParseServiceTest using Java 17.0.18 with PID 259 (started by root in /build)
+2026-04-20 17:18:22.747 [main] INFO  com.yizhaoqi.smartpai.service.ParseServiceTest - No active profile set, falling back to 1 default profile: "default"
+2026-04-20 17:20:11.969 [main] INFO  com.yizhaoqi.smartpai.client.EmbeddingClient - EmbeddingClient 初始化 - Provider: aliyun, 模型: Qwen/Qwen3-Embedding-0.6B, 批次大小: 100, 维度: 2048, API地址: https://api.siliconflow.cn/v1
+2026-04-20 17:20:17.131 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:20:17.794 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 33 个工具：[ask_user_question, bash, creator_export, creator_get_posts, creator_get, creator_post_batch_upsert, creator_screen, creator_search, creator_upsert, fs_edit, fs_read, fs_write, fs_glob, fs_grep, knowledge_search, list_skills, project_roster_add, project_roster_list, qiangua_brand_discover, schedule_create, schedule_delete, schedule_list, sleep, todo_write, tool_search, use_skill, web_fetch, web_search, xhs_download_video, xhs_fetch_pgy_kol, xhs_outreach_comment, xhs_refresh_creator, xhs_search_notes]
+2026-04-20 17:20:18.161 [main] INFO  c.y.smartpai.service.agent.context.ContextEngine - ContextEngine 启动，已注册 providers: [system_prompt, long_term_memory, active_skills, recent_history, live_turn]
+2026-04-20 17:20:23.367 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:20:23.369 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=10 updated=0 skipped=0 disabled=0 errors=0 registry=10
+2026-04-20 17:20:28.173 [main] INFO  com.yizhaoqi.smartpai.config.SecurityConfig - Security configuration loaded successfully.
+2026-04-20 17:21:16.084 [main] INFO  com.yizhaoqi.smartpai.service.ParseServiceTest - Started ParseServiceTest in 179.635 seconds (process running for 231.351)
+2026-04-20 17:21:16.100 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 检查管理员账号是否存在: admin
+2026-04-20 17:21:16.108 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 开始创建管理员账号: admin
+2026-04-20 17:21:16.226 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 管理员账号 'admin' 创建成功
+2026-04-20 17:21:16.240 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: default
+2026-04-20 17:21:16.257 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: default
+2026-04-20 17:21:16.421 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'default' 创建成功
+2026-04-20 17:21:16.423 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: admin
+2026-04-20 17:21:16.425 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: admin
+2026-04-20 17:21:16.431 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'admin' 创建成功
+2026-04-20 17:21:16.432 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签初始化完成
+2026-04-20 17:21:16.577 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:21:16.580 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:21:19.995 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:21:19.999 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:21:20.007 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:21:20.010 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:21:20.015 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 4 个工具：[fs_read, fs_grep, bash, knowledge_search]
+2026-04-20 17:21:20.378 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - Starting UploadServicePerformanceTest using Java 17.0.18 with PID 259 (started by root in /build)
+2026-04-20 17:21:20.380 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - The following 1 profile is active: "test"
+2026-04-20 17:21:47.027 [paismart-sched-1] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:21:47.028 [paismart-sched-1] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:22:01.186 [main] INFO  com.yizhaoqi.smartpai.client.EmbeddingClient - EmbeddingClient 初始化 - Provider: aliyun, 模型: Qwen/Qwen3-Embedding-0.6B, 批次大小: 100, 维度: 2048, API地址: https://api.siliconflow.cn/v1
+2026-04-20 17:22:01.442 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:22:01.540 [main] INFO  com.yizhaoqi.smartpai.service.tool.ToolRegistry - ToolRegistry 启动完成，已注册 33 个工具：[ask_user_question, bash, creator_export, creator_get_posts, creator_get, creator_post_batch_upsert, creator_screen, creator_search, creator_upsert, fs_edit, fs_read, fs_write, fs_glob, fs_grep, knowledge_search, list_skills, project_roster_add, project_roster_list, qiangua_brand_discover, schedule_create, schedule_delete, schedule_list, sleep, todo_write, tool_search, use_skill, web_fetch, web_search, xhs_download_video, xhs_fetch_pgy_kol, xhs_outreach_comment, xhs_refresh_creator, xhs_search_notes]
+2026-04-20 17:22:01.622 [main] INFO  c.y.smartpai.service.agent.context.ContextEngine - ContextEngine 启动，已注册 providers: [system_prompt, long_term_memory, active_skills, recent_history, live_turn]
+2026-04-20 17:22:02.093 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:22:02.094 [main] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=10 updated=0 skipped=0 disabled=0 errors=0 registry=10
+2026-04-20 17:22:02.409 [main] INFO  com.yizhaoqi.smartpai.config.SecurityConfig - Security configuration loaded successfully.
+2026-04-20 17:22:17.448 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:22:17.450 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:22:42.620 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - Started UploadServicePerformanceTest in 82.532 seconds (process running for 317.896)
+2026-04-20 17:22:42.623 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 检查管理员账号是否存在: admin
+2026-04-20 17:22:42.628 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 开始创建管理员账号: admin
+2026-04-20 17:22:42.711 [main] INFO  com.yizhaoqi.smartpai.config.AdminUserInitializer - 管理员账号 'admin' 创建成功
+2026-04-20 17:22:42.714 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: default
+2026-04-20 17:22:42.717 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: default
+2026-04-20 17:22:42.728 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'default' 创建成功
+2026-04-20 17:22:42.730 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 检查组织标签是否存在: admin
+2026-04-20 17:22:42.732 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 创建组织标签: admin
+2026-04-20 17:22:42.739 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签 'admin' 创建成功
+2026-04-20 17:22:42.740 [main] INFO  com.yizhaoqi.smartpai.config.OrgTagInitializer - 组织标签初始化完成
+2026-04-20 17:22:42.749 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - === UploadService 性能优化说明 ===
+2026-04-20 17:22:42.749 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化前：逐个查询Redis，1000个分片需要1000次网络往返
+2026-04-20 17:22:42.750 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化后：一次性获取bitmap，1000个分片只需要1次网络往返
+2026-04-20 17:22:42.750 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 预期性能提升：约100-1000倍（取决于分片数量和网络延迟）
+2026-04-20 17:22:42.751 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - ==========================================
+2026-04-20 17:22:42.752 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 模拟 1000 个分片的性能对比：
+2026-04-20 17:22:42.752 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化前耗时：3000ms
+2026-04-20 17:22:42.753 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 优化后耗时：4ms
+2026-04-20 17:22:42.753 [main] INFO  c.y.smartpai.service.UploadServicePerformanceTest - 性能提升：750倍
+2026-04-20 17:22:42.902 [main] INFO  com.yizhaoqi.smartpai.service.UploadService - [uploadChunk] 开始处理分片上传请求 => fileMd5: md5, chunkIndex: 0, totalSize: 1024, fileName: test.pdf, fileType: PDF文档, contentType: application/pdf, fileSize: 4, orgTag: TEAM_A, isPublic: false, userId: 1
+2026-04-20 17:22:42.907 [main] ERROR com.yizhaoqi.smartpai.service.UploadService - 分片上传过程中发生错误 => fileMd5: md5, fileName: test.pdf, fileType: PDF文档, chunkIndex: 0, 错误类型: com.yizhaoqi.smartpai.exception.CustomException, 错误信息: 文件已完成合并，不允许继续上传分片
+com.yizhaoqi.smartpai.exception.CustomException: 文件已完成合并，不允许继续上传分片
+	at com.yizhaoqi.smartpai.service.UploadService.uploadChunk(UploadService.java:87)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.lambda$uploadChunkRejectsWhenFileAlreadyCompleted$0(UploadServiceTest.java:68)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.uploadChunkRejectsWhenFileAlreadyCompleted(UploadServiceTest.java:66)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:767)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$8(TestMethodTestDescriptor.java:217)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:213)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:138)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:68)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:56)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-04-20 17:22:42.917 [main] INFO  com.yizhaoqi.smartpai.service.UploadService - [uploadChunk] 开始处理分片上传请求 => fileMd5: md5, chunkIndex: 0, totalSize: 1024, fileName: test.pdf, fileType: PDF文档, contentType: application/pdf, fileSize: 4, orgTag: TEAM_A, isPublic: false, userId: 1
+2026-04-20 17:22:42.918 [main] ERROR com.yizhaoqi.smartpai.service.UploadService - 分片上传过程中发生错误 => fileMd5: md5, fileName: test.pdf, fileType: PDF文档, chunkIndex: 0, 错误类型: com.yizhaoqi.smartpai.exception.CustomException, 错误信息: 文件正在合并中，请稍后重试
+com.yizhaoqi.smartpai.exception.CustomException: 文件正在合并中，请稍后重试
+	at com.yizhaoqi.smartpai.service.UploadService.uploadChunk(UploadService.java:84)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.lambda$uploadChunkRejectsWhenFileIsMerging$1(UploadServiceTest.java:89)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)
+	at com.yizhaoqi.smartpai.service.UploadServiceTest.uploadChunkRejectsWhenFileIsMerging(UploadServiceTest.java:87)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:767)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:156)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:147)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:86)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:103)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:92)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:86)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$8(TestMethodTestDescriptor.java:217)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:213)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:138)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:68)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:198)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:169)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:93)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:141)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:57)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LazyLauncher.execute(LazyLauncher.java:56)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:184)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:148)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:122)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-04-20 17:22:42.993 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:22:42.997 [paismart-sched-2] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10
+2026-04-20 17:22:43.159 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Creating private organization tag for user: testuser
+2026-04-20 17:22:43.160 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Private organization tag created successfully for user: testuser
+2026-04-20 17:22:43.161 [main] INFO  com.yizhaoqi.smartpai.service.UserService - User registered successfully with default and private organization tags: testuser
+2026-04-20 17:22:43.246 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Creating private organization tag for user: testuser
+2026-04-20 17:22:43.247 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Private organization tag created successfully for user: testuser
+2026-04-20 17:22:43.248 [main] INFO  com.yizhaoqi.smartpai.service.UserService - User registered successfully with default and private organization tags: testuser
+2026-04-20 17:22:43.305 [main] INFO  com.yizhaoqi.smartpai.service.UserService - Creating default organization tag
+2026-04-20 17:22:43.313 [main] WARN  com.yizhaoqi.smartpai.service.UserService - Registration blocked because registration mode is CLOSED, username: testuser
+2026-04-20 17:22:43.481 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:22:43.532 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-1 created=1 updated=0 skipped=[]
+2026-04-20 17:22:43.533 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-2 created=0 updated=1 skipped=[]
+2026-04-20 17:22:43.535 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:22:43.536 [main] WARN  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin: platform=xhs_pc 缺失必要字段=[web_session]，跳过
+2026-04-20 17:22:43.538 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-x created=1 updated=0 skipped=[xhs_pc:missing=web_session]
+2026-04-20 17:22:43.541 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:22:43.543 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:22:43.544 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess-1 created=4 updated=0 skipped=[]
+2026-04-20 17:22:43.545 [main] WARN  com.yizhaoqi.smartpai.service.xhs.CookieCipher - xhs.cookie-secret 未设置，使用默认值。生产部署请在环境变量 XHS_COOKIE_SECRET 中覆盖！
+2026-04-20 17:22:43.546 [main] INFO  c.yizhaoqi.smartpai.service.xhs.XhsCookieService - bulkUpsertFromLogin org=org1 session=sess created=1 updated=0 skipped=[]
+2026-04-20 17:22:45.715 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 45ca5bf1a15b4c62b8b0ed939a3ec7dd
+2026-04-20 17:22:46.083 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 6015814745174f6dba8816d0b90217b7
+2026-04-20 17:22:46.132 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 1285487be8e8467a85eb68c55abdb173
+2026-04-20 17:22:46.291 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 6cad4b75e8104d0eba093fd7ffe289d9
+2026-04-20 17:22:46.333 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: f699b3db04b3424488efaa204c1d8dd2
+2026-04-20 17:22:46.334 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token refreshed successfully for user: testuser
+2026-04-20 17:22:47.492 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 514334a66e4a46c18af5f525efd438d1
+2026-04-20 17:22:47.493 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token refreshed successfully for user: testuser
+2026-04-20 17:22:47.533 [main] INFO  com.yizhaoqi.smartpai.utils.JwtUtils - Token generated and cached for user: testuser, tokenId: 93ce54c7f1b94bff814ee4d1470e290c
+2026-04-20 17:22:47.792 [paismart-sched-1] INFO  com.yizhaoqi.smartpai.service.skill.SkillRegistry - SkillRegistry 全量替换完成，共 10 个 skill
+2026-04-20 17:22:47.794 [paismart-sched-1] INFO  com.yizhaoqi.smartpai.service.skill.SkillLoader - SkillLoader reload 完成 scanned=10 added=0 updated=0 skipped=10 disabled=0 errors=0 registry=10

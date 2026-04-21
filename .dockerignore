@@ -1,0 +1,26 @@
+.git
+.gitignore
+.idea
+.vscode
+.qoder
+target
+logs
+*.log
+*.log.*
+nohup.out
+pid.log
+frontend
+node_modules
+.env
+.env.*
+!.env.example
+!.env.deploy.example
+# 保留 skill 里 vendored 依赖自带的 .env（Spider_XHS 需要读）
+!skills-bundled/**/.env
+launch.sh
+deploy-front.sh
+README.md
+CLAUDE.md
+DEPLOY.md
+test-results
+playwright-report

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven 构建镜像配置（仅 Docker 构建阶段用）：
+  用阿里云公共仓库做镜像，避免国内直连 repo.maven.apache.org 时握手被重置。
+  用户本地 mvn 构建不受影响。
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+  <mirrors>
+    <mirror>
+      <id>aliyun-public</id>
+      <name>Aliyun Public Mirror</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+    <mirror>
+      <id>aliyun-spring</id>
+      <name>Aliyun Spring Mirror</name>
+      <url>https://maven.aliyun.com/repository/spring</url>
+      <mirrorOf>spring-milestones,spring-snapshots</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>

@@ -1,0 +1,10 @@
+{
+  "name": "smartpai-xhs-qr-login",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "在后端容器里跑 headless Chromium，代理业务员扫码登录 xhs / 蒲公英 / 千帆 / 创作者中心，并把各平台 cookie 流式回传给 Java。由 LoginBrowserRunner 直接 fork，不走 SkillRegistry。",
+  "dependencies": {
+    "playwright": "1.55.0"
+  }
+}

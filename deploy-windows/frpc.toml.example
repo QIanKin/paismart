@@ -1,0 +1,68 @@
+# ============================================================
+# frpc.toml —— frp 客户端配置，放在你的【Windows 电脑】上
+# 对应 frp v0.58+（新版 TOML 格式）
+#
+# 部署方式（Windows 上）：
+#   1. 下载 Windows 版 frp：
+#      https://github.com/fatedier/frp/releases/latest
+#      找 frp_X.X.X_windows_amd64.zip 解压
+#   2. 把本文件改名为 frpc.toml，放到 frp 解压目录
+#   3. 修改下面的 YOUR_VPS_IP / TOKEN / LOCAL_IP
+#   4. 命令行跑：frpc.exe -c frpc.toml
+# ============================================================
+
+# 你的 VPS 公网 IP
+serverAddr = "121.196.171.36"
+serverPort = 7000
+
+# 必须和 frps.toml 里一样
+auth.method = "token"
+auth.token = "CHANGE_ME_TO_A_LONG_RANDOM_STRING"
+
+# 客户端心跳
+transport.heartbeatInterval = 30
+transport.heartbeatTimeout  = 90
+
+log.to = "./frpc.log"
+log.level = "info"
+log.maxDays = 7
+
+# ============================================================
+# 代理规则：把本地端口穿透到 VPS 公网端口
+# 注意：localIP 通常填 127.0.0.1 即可；如果 Docker Desktop 绑在
+# 其他网卡上（比较少见），改成对应的本机内网 IP。
+# ============================================================
+
+# 1) 前端 Web（必开）
+#    浏览器访问 http://VPS_IP -> 转发到本机 80 端口（Nginx 容器）
+[[proxies]]
+name      = "paismart-web"
+type      = "tcp"
+localIP   = "127.0.0.1"
+localPort = 80
+remotePort = 80
+
+# 2) MinIO S3 API（必开）
+#    浏览器下载文件时会请求 http://VPS_IP:19000/xxx 的 presigned URL
+[[proxies]]
+name      = "paismart-minio-api"
+type      = "tcp"
+localIP   = "127.0.0.1"
+localPort = 19000
+remotePort = 19000
+
+# 3) MinIO 控制台（可选，管理员用；安全起见建议在 VPS 防火墙只放行你自己的 IP）
+[[proxies]]
+name      = "paismart-minio-console"
+type      = "tcp"
+localIP   = "127.0.0.1"
+localPort = 19001
+remotePort = 19001
+
+# 4) 后端直连（调试用，一般不开；开启前想清楚是否真的需要）
+# [[proxies]]
+# name      = "paismart-backend"
+# type      = "tcp"
+# localIP   = "127.0.0.1"
+# localPort = 8081
+# remotePort = 8081

@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.yizhaoqi.smartpai.service.ParseServiceTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 190.7 s -- in com.yizhaoqi.smartpai.service.ParseServiceTest

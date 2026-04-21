@@ -1,0 +1,37 @@
+# ============================================================
+# frps.toml —— frp 服务端配置，放在你的【公网 VPS】上
+# 对应 frp v0.58+（新版 TOML 格式）
+#
+# 部署方式（在 VPS 上）：
+#   wget https://github.com/fatedier/frp/releases/download/v0.61.1/frp_0.61.1_linux_amd64.tar.gz
+#   tar -xzf frp_0.61.1_linux_amd64.tar.gz && cd frp_0.61.1_linux_amd64
+#   # 把本文件内容放到 frps.toml
+#   ./frps -c ./frps.toml
+#
+# 建议做成 systemd 服务（见 DEPLOY-WINDOWS.md 第六节）。
+# ============================================================
+
+# frp 控制通道监听端口（client 就是连这个端口注册的）
+bindPort = 7000
+
+# 鉴权 token（client 端要填一样的，随便写一个长一点的字符串）
+auth.method = "token"
+auth.token = "CHANGE_ME_TO_A_LONG_RANDOM_STRING"
+
+# 允许 client 绑定的端口范围（防止乱用你的 VPS）
+allowPorts = [
+    { start = 80,    end = 80 },
+    { start = 8080,  end = 8080 },
+    { start = 19000, end = 19001 },
+]
+
+# 日志
+log.to = "./frps.log"
+log.level = "info"
+log.maxDays = 7
+
+# （可选）frp 自带 Dashboard，浏览器访问可以看连接状态
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "CHANGE_ME_dashboard_password"
