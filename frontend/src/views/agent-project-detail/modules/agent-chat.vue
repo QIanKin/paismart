@@ -30,6 +30,10 @@ const wsSend = chatStore.wsSend;
 
 // 当前会话 messages（响应式）
 const messages = computed(() => sessionBus.messagesBySession[props.sessionId] || []);
+// Phase 4a 活体状态：ask_user 悬挂、todos 清单、当前 step
+const askUser = computed(() => sessionBus.askUserBySession[props.sessionId] || null);
+const todos = computed(() => sessionBus.todosBySession[props.sessionId] || []);
+const currentStep = computed(() => sessionBus.currentStepBySession[props.sessionId] ?? null);
 const loadingHistory = ref(false);
 
 // 用户发送消息时记住哪个业务会话在"等回复"；因为后端事件不带业务 sessionId，
@@ -105,6 +109,15 @@ watch(wsData, raw => {
       });
       break;
 
+    case 'tool_progress': {
+      // 后端 publishToolProgress 的信封：{ toolUseId, progressType, message, payload }
+      // 我们只把 message 显示到对应工具卡片下方；payload 先不展开（留给后续调试面板）
+      const tid = String(data.toolUseId || '');
+      const text = String(data.message || data.progressType || '');
+      if (tid && text) sessionBus.updateToolProgress(targetSid, tid, text);
+      break;
+    }
+
     case 'tool_result':
       sessionBus.finishToolCall(
         targetSid,
@@ -118,6 +131,33 @@ watch(wsData, raw => {
         },
         Boolean(data.isError)
       );
+      break;
+
+    case 'ask_user': {
+      // Agent 通过 AskUserQuestionTool 发起结构化反问
+      const q = String(data.question || '').trim();
+      if (q) {
+        sessionBus.setAskUser(targetSid, q, Array.isArray(data.options) ? data.options : [], payload.messageId);
+      }
+      break;
+    }
+
+    case 'todo':
+      // data.todos 是整份清单，整体替换
+      sessionBus.setTodos(targetSid, Array.isArray(data.todos) ? data.todos : []);
+      break;
+
+    case 'step_start':
+      sessionBus.setCurrentStep(targetSid, Number(data.step) || null);
+      break;
+
+    case 'step_end':
+      // step_end 不清 step，等到 completion 再清；但若这是最后一步且后端不发 completion 就兜底
+      // 目前 AgentRuntime 每一步都 start/end 配对，保留当前步号即可。
+      break;
+
+    case 'plan':
+      // 目前暂不单独渲染 plan 文本（LLM chunk 里通常已经有了），先忽略
       break;
 
     case 'completion':
@@ -145,7 +185,6 @@ watch(wsData, raw => {
       break;
 
     default:
-      // plan / todo / step_start / step_end / tool_progress / ask_user 暂不展示，后续可加
       break;
   }
 });
@@ -208,6 +247,45 @@ function roleLabel(role: string) {
   if (role === 'user') return '你';
   if (role === 'assistant') return '小蜜蜂';
   return role;
+}
+
+// Phase 4a：ask_user 选项点击 -> 作为下一轮 user message 发出
+// 自定义 text 走 inputText 正常 handleSend；options 走这里
+function handleAskUserOption(option: string) {
+  if (!option || isSending.value) return;
+  if (connectionStatus.value !== 'OPEN') {
+    window.$message?.warning('连接中，请稍等…');
+    return;
+  }
+  sessionBus.markAskUserAnswered(props.sessionId);
+  sessionBus.pushUser(props.sessionId, option);
+  sessionBus.pushAssistantPending(props.sessionId);
+  pendingBusinessSessionId.value = props.sessionId;
+  wsSend(
+    JSON.stringify({
+      type: 'chat',
+      content: option,
+      sessionId: props.sessionId,
+      projectId: props.projectId
+    })
+  );
+  scrollToBottom();
+  // 清掉气泡：下一轮 agent 如果再发 ask_user 会重新 set
+  setTimeout(() => sessionBus.clearAskUser(props.sessionId), 150);
+}
+
+function todoStatusIcon(status: string) {
+  if (status === 'completed') return '✓';
+  if (status === 'in_progress') return '◐';
+  if (status === 'cancelled') return '–';
+  return '○';
+}
+
+function todoStatusClass(status: string) {
+  if (status === 'completed') return 'text-emerald-500 line-through opacity-70';
+  if (status === 'in_progress') return 'text-primary-500 font-medium';
+  if (status === 'cancelled') return 'text-stone-400 line-through';
+  return 'text-stone-500';
 }
 </script>
 
@@ -286,29 +364,83 @@ function roleLabel(role: string) {
 
             <!-- tool calls 轨迹 -->
             <div v-if="msg.toolCalls && msg.toolCalls.length" class="flex-col gap-4px">
-              <div
-                v-for="call in msg.toolCalls"
-                :key="call.toolUseId"
-                class="flex items-center gap-2 rounded-6px bg-#fafafa px-10px py-6px text-xs text-stone-600 dark:bg-#2b2e34 dark:text-stone-300"
-              >
-                <NTag
-                  size="tiny"
-                  :type="call.status === 'error' ? 'error' : call.status === 'ok' ? 'success' : 'info'"
-                  :bordered="false"
+              <div v-for="call in msg.toolCalls" :key="call.toolUseId" class="flex-col gap-2px">
+                <div
+                  class="flex items-center gap-2 rounded-6px bg-#fafafa px-10px py-6px text-xs text-stone-600 dark:bg-#2b2e34 dark:text-stone-300"
                 >
-                  {{ call.status === 'running' ? '⏳' : call.status === 'ok' ? '✓' : '✗' }}
-                  {{ call.userFacingName || call.tool }}
-                </NTag>
-                <span class="flex-auto truncate">
-                  {{ call.result?.summary || call.summary || '…' }}
-                </span>
-                <span v-if="call.result?.durationMs" class="text-stone-400">{{ call.result.durationMs }}ms</span>
+                  <NTag
+                    size="tiny"
+                    :type="call.status === 'error' ? 'error' : call.status === 'ok' ? 'success' : 'info'"
+                    :bordered="false"
+                  >
+                    {{ call.status === 'running' ? '⏳' : call.status === 'ok' ? '✓' : '✗' }}
+                    {{ call.userFacingName || call.tool }}
+                  </NTag>
+                  <span class="flex-auto truncate">
+                    {{ call.result?.summary || call.summary || '…' }}
+                  </span>
+                  <span v-if="call.result?.durationMs" class="text-stone-400">{{ call.result.durationMs }}ms</span>
+                </div>
+                <!-- Phase 4a: tool_progress 累积文本，仅在工具运行中显示 -->
+                <div
+                  v-if="call.status === 'running' && call.progressText"
+                  class="pl-10px text-xs text-stone-400"
+                >
+                  <span class="mr-1 animate-pulse">›</span>{{ call.progressText }}
+                </div>
               </div>
             </div>
+          </div>
+
+          <!-- Phase 4a: Agent 反问气泡（贴在消息流末尾，输入框上方；每个会话最多一个悬挂） -->
+          <div
+            v-if="askUser"
+            class="self-start rounded-10px b-1 b-dashed b-primary-500/40 bg-primary-50 px-14px py-10px text-sm dark:bg-#223041"
+          >
+            <div class="flex items-center gap-2 text-xs text-primary-500">
+              <SvgIcon icon="solar:question-circle-bold-duotone" class="text-14px" />
+              <span>小蜜蜂请你确认</span>
+              <span v-if="askUser.answered" class="ml-auto text-stone-400">已回复</span>
+            </div>
+            <div class="mt-1 text-[13px] leading-[1.6] text-stone-700 dark:text-stone-200">
+              {{ askUser.question }}
+            </div>
+            <div v-if="askUser.options.length" class="mt-2 flex flex-wrap gap-2">
+              <NButton
+                v-for="opt in askUser.options"
+                :key="opt"
+                size="small"
+                :type="askUser.answered ? 'default' : 'primary'"
+                :ghost="!askUser.answered"
+                :disabled="askUser.answered || isSending || connectionStatus !== 'OPEN'"
+                @click="handleAskUserOption(opt)"
+              >
+                {{ opt }}
+              </NButton>
+            </div>
+            <div v-else class="mt-1 text-xs text-stone-400">请在下方直接回复你的答案。</div>
           </div>
         </div>
       </NScrollbar>
     </NSpin>
+
+    <!-- Phase 4a: TODO 面板（固定吸在输入框上方，整个会话共享） -->
+    <div
+      v-if="todos.length"
+      class="border-t b-#e5e7eb20 bg-#ffffff/95 px-16px py-8px text-xs dark:b-#1f2937 dark:bg-#1b1d21/95"
+    >
+      <div class="mb-1 flex items-center gap-2 text-stone-500">
+        <SvgIcon icon="solar:checklist-minimalistic-bold-duotone" class="text-14px text-primary-500" />
+        <span>小蜜蜂的 TODO（{{ todos.filter(t => t.status === 'completed').length }} / {{ todos.length }}）</span>
+        <span v-if="currentStep !== null" class="ml-auto text-stone-400">第 {{ currentStep }} 步</span>
+      </div>
+      <div class="flex-col gap-1">
+        <div v-for="t in todos" :key="t.id" class="flex items-start gap-2" :class="todoStatusClass(t.status)">
+          <span class="w-12px shrink-0 text-center">{{ todoStatusIcon(t.status) }}</span>
+          <span class="flex-auto break-words">{{ t.content }}</span>
+        </div>
+      </div>
+    </div>
 
     <!-- Input box -->
     <div class="border-t b-#e5e7eb20 bg-#ffffff px-16px py-12px dark:b-#1f2937 dark:bg-#1b1d21">

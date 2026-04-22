@@ -95,8 +95,8 @@ public class TodoWriteTool implements Tool {
 
         redis.opsForValue().set(key, MAPPER.writeValueAsString(merged), TTL);
 
-        // 推一个 TODO 事件给前端
-        ctx.emitProgress("data", "todo_updated", merged);
+        // 走专用 todo WS 事件通道（不是 tool_progress），前端会活体渲染清单
+        ctx.updateTodos(merged);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("count", merged.size());

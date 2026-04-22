@@ -13,15 +13,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+
 /**
  * Agent 主动向用户发起结构化反问。常用于：
  *  - 关键信息不足（例如博主要搜哪个平台、要导出哪些字段）；
  *  - 任务存在多种执行路径，需要用户做选择。
  *
- * 机制：工具只把问题发到前端（触发 ask_user WS 事件），Agent 当前轮继续 plan/回答，
- * 用户点答案时由前端作为下一轮 user message 发回——和普通输入一样进 Agent。
+ * 机制：工具调 {@link ToolContext#askUser} 把问题推到前端（触发 ask_user WS 事件，
+ * 非 tool_progress），前端渲染问题气泡 + options 按钮。用户点选项由前端作为下一轮
+ * user message 发回——和普通输入一样进 Agent。
  *
- * 这个工具本身立即返回一个"已提问"的占位，让 LLM 知道"别再等了，下一步等用户"。
+ * 本工具自己立即返回一个"已提问"的占位，告诉 LLM "别再继续调工具了，等用户"。
  */
 @Component
 public class AskUserQuestionTool implements Tool {
@@ -68,12 +70,8 @@ public class AskUserQuestionTool implements Tool {
             }
         }
 
-        // 借用 progress 通道把问题推给 UI；AgentEventPublisher 会把它转成 ask_user WS 事件。
-        // （ToolContext.emitProgress 默认走 tool_progress 事件；Runtime 发 tool_result 时前端已有完整 payload）
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("question", question);
-        payload.put("options", options);
-        ctx.emitProgress("data", "ask_user", payload);
+        // 走专用 ask_user WS 事件通道；前端拿到后渲染问题气泡 + options 按钮。
+        ctx.askUser(question, options);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("asked", true);

@@ -421,6 +421,8 @@ public class AgentRuntime {
                 .toolUseId(toolUseId)
                 .cancelled(cancelFlag)
                 .progressSink(progress -> events.publishToolProgress(session, messageId, progress))
+                .askUserSink((question, options) -> events.publishAskUser(session, messageId, question, options))
+                .todoSink(todos -> events.publishTodo(session, messageId, todos))
                 .build();
 
         long start = System.currentTimeMillis();
