@@ -3,8 +3,10 @@ package com.yizhaoqi.smartpai.service.agent;
 import com.yizhaoqi.smartpai.model.agent.Project;
 import com.yizhaoqi.smartpai.model.agent.ProjectCreator;
 import com.yizhaoqi.smartpai.model.creator.Creator;
+import com.yizhaoqi.smartpai.model.creator.CreatorAccount;
 import com.yizhaoqi.smartpai.repository.agent.ProjectCreatorRepository;
 import com.yizhaoqi.smartpai.repository.agent.ProjectRepository;
+import com.yizhaoqi.smartpai.repository.creator.CreatorAccountRepository;
 import com.yizhaoqi.smartpai.repository.creator.CreatorRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,13 +42,16 @@ public class ProjectCreatorService {
     private final ProjectCreatorRepository rosterRepo;
     private final ProjectRepository projectRepo;
     private final CreatorRepository creatorRepo;
+    private final CreatorAccountRepository accountRepo;
 
     public ProjectCreatorService(ProjectCreatorRepository rosterRepo,
                                  ProjectRepository projectRepo,
-                                 CreatorRepository creatorRepo) {
+                                 CreatorRepository creatorRepo,
+                                 CreatorAccountRepository accountRepo) {
         this.rosterRepo = rosterRepo;
         this.projectRepo = projectRepo;
         this.creatorRepo = creatorRepo;
+        this.accountRepo = accountRepo;
     }
 
     /** 列出某个项目的所有 roster 条目（附带 creator 主表字段，一次请求搞定）。 */
@@ -160,6 +165,60 @@ public class ProjectCreatorService {
             saved.add(rosterRepo.save(pc));
         }
         return saved;
+    }
+
+    /**
+     * 按 <strong>账号</strong>（CreatorAccount）批量加入名册。
+     *
+     * <p>流程：对每个 accountId，若其 {@code creatorId==null} 就<strong>即时为它造一个 Creator（人）</strong>
+     * 并回写 account.creatorId；然后用得到的 creatorId 去 {@link #addBatch} upsert 名册。</p>
+     *
+     * <p>这条路径是给"博主库（账号视图）→ 项目名册"用的 —— 用户/Agent 看到的是 CreatorAccount，
+     * 不用关心 Creator（人）表什么时候出现。</p>
+     *
+     * @return 新建/合并出的 ProjectCreator 条目列表
+     */
+    @Transactional
+    public List<ProjectCreator> addAccountsBatch(Long projectId, Long ownerUserId, List<Long> accountIds,
+                                                 ProjectCreator.Stage stage, String addedBy) {
+        Project project = assertOwned(projectId, ownerUserId);
+        if (accountIds == null || accountIds.isEmpty()) return List.of();
+        List<Long> creatorIds = new ArrayList<>(accountIds.size());
+        for (Long accountId : accountIds) {
+            if (accountId == null) continue;
+            CreatorAccount acc = accountRepo.findById(accountId).orElse(null);
+            if (acc == null) {
+                log.warn("[roster] 跳过不存在的 accountId={}", accountId);
+                continue;
+            }
+            if (acc.getOwnerOrgTag() == null || !acc.getOwnerOrgTag().equals(project.getOrgTag())) {
+                log.warn("[roster] 跳过跨租户 accountId={} accountOrg={} projectOrg={}",
+                        accountId, acc.getOwnerOrgTag(), project.getOrgTag());
+                continue;
+            }
+            Long creatorId = acc.getCreatorId();
+            if (creatorId == null) {
+                Creator c = materializeCreatorFromAccount(acc, project.getOrgTag());
+                creatorId = c.getId();
+                acc.setCreatorId(creatorId);
+                accountRepo.save(acc);
+                log.info("[roster] 为 account #{} 即时生成 creator #{}", accountId, creatorId);
+            }
+            creatorIds.add(creatorId);
+        }
+        if (creatorIds.isEmpty()) return List.of();
+        return addBatch(projectId, ownerUserId, creatorIds, stage, addedBy);
+    }
+
+    /** 为一个 CreatorAccount 即时 materialize 出一条 Creator（人）记录。 */
+    private Creator materializeCreatorFromAccount(CreatorAccount acc, String orgTag) {
+        Creator c = new Creator();
+        c.setOwnerOrgTag(orgTag);
+        String name = acc.getDisplayName();
+        if (name == null || name.isBlank()) name = acc.getHandle();
+        if (name == null || name.isBlank()) name = "Creator_" + acc.getPlatformUserId();
+        c.setDisplayName(name);
+        return creatorRepo.save(c);
     }
 
     @Transactional(readOnly = true)

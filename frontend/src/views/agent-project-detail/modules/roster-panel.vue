@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { computed, h, onMounted, ref } from 'vue';
+import { computed, h, onMounted, ref, watch } from 'vue';
 import {
   NButton,
   NDataTable,
@@ -15,7 +15,7 @@ import {
 } from 'naive-ui';
 import type { DataTableColumns, SelectOption } from 'naive-ui';
 import {
-  fetchCreatorList,
+  fetchAccountList,
   fetchProjectRoster,
   fetchProjectRosterAddBatch,
   fetchProjectRosterRemove,
@@ -62,25 +62,37 @@ async function load() {
 
 watch(() => props.projectId, load, { immediate: true });
 
-// ============ 添加博主 ============
+// ============ 添加博主（按"账号"搜索，后端自动把 account 关联到 Creator） ============
 const addVisible = ref(false);
 const addStage = ref<Api.Project.RosterStage>('SHORTLISTED');
 const addKeyword = ref('');
-const addCandidates = ref<Api.Creator.Person[]>([]);
+const addPlatform = ref<string | null>(null);
+const addCandidates = ref<Api.Creator.Account[]>([]);
 const addSelectedIds = ref<number[]>([]);
 const addSearching = ref(false);
 const addSubmitting = ref(false);
+const addTotal = ref(0);
+
+const platformOptions: SelectOption[] = [
+  { label: '全部平台', value: null as any },
+  { label: '小红书', value: 'xhs' },
+  { label: '抖音', value: 'douyin' },
+  { label: 'B 站', value: 'bilibili' },
+  { label: '微博', value: 'weibo' }
+];
 
 async function searchCandidates() {
   addSearching.value = true;
   try {
-    const { data } = await fetchCreatorList({
+    const { data } = await fetchAccountList({
       keyword: addKeyword.value || null,
+      platform: addPlatform.value,
       page: 0,
       size: 30,
-      sort: 'id:desc'
+      sort: 'followers:desc'
     });
     addCandidates.value = data?.items ?? [];
+    addTotal.value = data?.total ?? 0;
   } finally {
     addSearching.value = false;
   }
@@ -89,6 +101,7 @@ async function searchCandidates() {
 function openAdd() {
   addVisible.value = true;
   addKeyword.value = '';
+  addPlatform.value = null;
   addSelectedIds.value = [];
   addCandidates.value = [];
   searchCandidates();
@@ -101,7 +114,11 @@ async function confirmAdd() {
   }
   addSubmitting.value = true;
   try {
-    const { error } = await fetchProjectRosterAddBatch(props.projectId, addSelectedIds.value, addStage.value);
+    const { error } = await fetchProjectRosterAddBatch(
+      props.projectId,
+      { accountIds: addSelectedIds.value },
+      addStage.value
+    );
     if (!error) {
       window.$message?.success(`已加入 ${addSelectedIds.value.length} 个博主`);
       addVisible.value = false;
@@ -110,6 +127,12 @@ async function confirmAdd() {
   } finally {
     addSubmitting.value = false;
   }
+}
+
+function fmtFans(n?: number | null): string {
+  if (n == null) return '-';
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
+  return String(n);
 }
 
 // ============ stage 切换 ============
@@ -308,21 +331,27 @@ const columns = computed<DataTableColumns<Api.Project.RosterEntry>>(() => [
       />
     </NSpin>
 
-    <!-- 添加博主 Modal -->
-    <NModal v-model:show="addVisible" preset="card" title="添加博主到名册" :style="{ width: '640px' }">
+    <!-- 添加博主 Modal：直接搜"博主库（账号）"，可按平台/昵称过滤，后端自动解决 account ↔ creator 绑定。 -->
+    <NModal v-model:show="addVisible" preset="card" title="从博主库添加博主" :style="{ width: '720px' }">
       <NFlex :size="8" class="pb-12px">
         <NInput
           v-model:value="addKeyword"
-          placeholder="搜索昵称 / 真名 / 赛道关键字"
+          placeholder="搜索昵称 / 简介 / 话题"
           clearable
           @keydown.enter="searchCandidates"
         />
+        <NSelect
+          v-model:value="addPlatform"
+          :options="platformOptions"
+          class="w-120px"
+          placeholder="平台"
+        />
         <NButton :loading="addSearching" @click="searchCandidates">搜索</NButton>
-        <NSelect v-model:value="addStage" :options="STAGE_OPTIONS" class="w-32" />
+        <NSelect v-model:value="addStage" :options="STAGE_OPTIONS" class="w-100px" />
       </NFlex>
 
-      <div class="max-h-320px overflow-auto">
-        <NEmpty v-if="!addSearching && addCandidates.length === 0" description="没有结果" />
+      <div class="max-h-360px overflow-auto">
+        <NEmpty v-if="!addSearching && addCandidates.length === 0" description="博主库为空。先去「博主库」页批量抓取或录入博主" />
         <div
           v-for="c in addCandidates"
           :key="c.id"
@@ -334,17 +363,39 @@ const columns = computed<DataTableColumns<Api.Project.RosterEntry>>(() => [
           "
         >
           <input type="checkbox" :checked="addSelectedIds.includes(c.id)" @click.stop />
-          <div class="flex-col flex-auto">
-            <span class="font-semibold">{{ c.displayName }}</span>
-            <span class="text-xs text-stone-500">{{ c.personaTags || c.trackTags || '—' }}</span>
+          <img
+            v-if="c.avatarUrl"
+            :src="c.avatarUrl"
+            class="h-8 w-8 rounded-full object-cover"
+            referrerpolicy="no-referrer"
+            alt=""
+          />
+          <div v-else class="h-8 w-8 flex items-center justify-center rounded-full bg-stone-200 text-xs text-stone-500 dark:bg-stone-700">
+            {{ (c.displayName || c.handle || '?').slice(0, 1) }}
           </div>
-          <span class="text-xs text-stone-400">#{{ c.id }}</span>
+          <div class="flex-col flex-auto min-w-0">
+            <div class="flex items-center gap-1">
+              <span class="font-semibold">{{ c.displayName || c.handle || `#${c.id}` }}</span>
+              <NTag size="tiny" :bordered="false" type="info">{{ c.platform }}</NTag>
+              <NTag v-if="c.verified" size="tiny" :bordered="false" type="success">认证</NTag>
+            </div>
+            <span class="truncate text-xs text-stone-500">
+              {{ c.bio || c.categoryMain || c.categorySub || '—' }}
+            </span>
+          </div>
+          <div class="flex-col items-end text-right text-xs text-stone-500">
+            <span>{{ fmtFans(c.followers) }} 粉</span>
+            <span v-if="c.avgLikes != null">avg❤ {{ fmtFans(c.avgLikes) }}</span>
+          </div>
+          <span class="ml-2 text-xs text-stone-400">#{{ c.id }}</span>
         </div>
       </div>
 
       <template #footer>
         <div class="flex items-center justify-between">
-          <span class="text-xs text-stone-500">已选 {{ addSelectedIds.length }} 个</span>
+          <span class="text-xs text-stone-500">
+            已选 {{ addSelectedIds.length }} / {{ addCandidates.length }}，库里一共 {{ addTotal }} 个
+          </span>
           <NFlex :size="8">
             <NButton @click="addVisible = false">取消</NButton>
             <NButton type="primary" :loading="addSubmitting" @click="confirmAdd">加入名册</NButton>

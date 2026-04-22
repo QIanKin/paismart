@@ -68,22 +68,38 @@ public class ProjectCreatorController {
         return ok(entry);
     }
 
-    /** 批量加：一次把搜索框里勾选的 N 个博主塞进 roster。 */
+    /** 批量加：一次把搜索框里勾选的 N 个博主塞进 roster。支持 {@code creatorIds}（人 id） 或 {@code accountIds}（账号 id）。 */
     @PostMapping(":batch")
     @SuppressWarnings("unchecked")
     public ResponseEntity<?> addBatch(@RequestHeader("Authorization") String auth,
                                       @PathVariable Long projectId,
                                       @RequestBody Map<String, Object> body) {
         User user = resolveUser(auth);
-        Object raw = body.get("creatorIds");
-        if (!(raw instanceof List<?> rawList)) return bad("creatorIds 必须是数组");
-        List<Long> ids = new ArrayList<>();
-        for (Object o : rawList) {
-            Long v = asLong(o);
-            if (v != null) ids.add(v);
+        Object rawCreator = body.get("creatorIds");
+        Object rawAccount = body.get("accountIds");
+        ProjectCreator.Stage stage = parseStage(body.get("stage"));
+        String addedBy = String.valueOf(user.getId());
+
+        List<ProjectCreator> saved = new ArrayList<>();
+        if (rawAccount instanceof List<?> accList && !accList.isEmpty()) {
+            List<Long> ids = new ArrayList<>();
+            for (Object o : accList) {
+                Long v = asLong(o);
+                if (v != null) ids.add(v);
+            }
+            saved.addAll(service.addAccountsBatch(projectId, user.getId(), ids, stage, addedBy));
         }
-        List<ProjectCreator> saved = service.addBatch(projectId, user.getId(), ids,
-                parseStage(body.get("stage")), String.valueOf(user.getId()));
+        if (rawCreator instanceof List<?> creList && !creList.isEmpty()) {
+            List<Long> ids = new ArrayList<>();
+            for (Object o : creList) {
+                Long v = asLong(o);
+                if (v != null) ids.add(v);
+            }
+            saved.addAll(service.addBatch(projectId, user.getId(), ids, stage, addedBy));
+        }
+        if (saved.isEmpty() && rawCreator == null && rawAccount == null) {
+            return bad("creatorIds 或 accountIds 必须提供其一");
+        }
         return ok(saved);
     }
 

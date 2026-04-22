@@ -43,11 +43,13 @@ public class XhsCookieHealthService {
     private static final Logger log = LoggerFactory.getLogger(XhsCookieHealthService.class);
 
     /** 根路径探测：key = platform，value = 要 GET 的主页 URL。cookie 整串原样塞 Cookie header。 */
+    // 注意：xhs_qianfan 历史叫"千帆"，但其真实域名是 ark.xiaohongshu.com，qianfan.xiaohongshu.com
+    // 是 NXDOMAIN（该域从未存在）。platform 值保持不变以避免破坏已有数据。
     private static final java.util.Map<String, String> WEB_PROBE_URLS = java.util.Map.of(
             "xhs_pc", "https://www.xiaohongshu.com/",
             "xhs_creator", "https://creator.xiaohongshu.com/creator-center",
             "xhs_pgy", "https://pgy.xiaohongshu.com/",
-            "xhs_qianfan", "https://qianfan.xiaohongshu.com/"
+            "xhs_qianfan", "https://ark.xiaohongshu.com/"
     );
 
     /** 通用反爬兼容 UA。Spider_XHS 风格。 */

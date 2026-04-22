@@ -24,15 +24,19 @@ export function fetchProjectRosterAdd(
   });
 }
 
+/**
+ * 批量加入名册。可以按"人 id"（creatorIds）或"账号 id"（accountIds）其一入库；
+ * 走账号时，如果 account 没绑定 Creator（人），后端会自动造一个并绑定。
+ */
 export function fetchProjectRosterAddBatch(
   projectId: number,
-  creatorIds: number[],
+  ids: { creatorIds?: number[]; accountIds?: number[] },
   stage: Api.Project.RosterStage = 'SHORTLISTED'
 ) {
   return request<Api.Project.RosterEntry[]>({
     url: `/agent/projects/${projectId}/creators:batch`,
     method: 'post',
-    data: { creatorIds, stage }
+    data: { ...ids, stage }
   });
 }
 

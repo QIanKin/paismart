@@ -39,10 +39,32 @@ def _float(v):
         return None
 
 
+def _price_note(price_info) -> str | None:
+    """把蒲公英 priceInfoList 转成人类可读的 '图文: 800 / 视频: 1500'。"""
+    if not price_info:
+        return None
+    try:
+        if isinstance(price_info, list):
+            parts: list[str] = []
+            for p in price_info:
+                if not isinstance(p, dict):
+                    continue
+                t = p.get("noteType") or p.get("typeName") or p.get("type")
+                price = p.get("price") if p.get("price") is not None else p.get("fee")
+                if t and price is not None:
+                    parts.append(f"{t}: {price}")
+            if parts:
+                return " / ".join(parts)
+        return json.dumps(price_info, ensure_ascii=False)
+    except Exception:
+        return str(price_info)
+
+
 def _snapshot(summary: dict, notes_rate: dict) -> dict:
-    """从 dataSummary 和 notesRate 里抠出几个关键指标当 snapshot。"""
+    """从 dataSummary 和 notesRate 里抠出几个关键指标当 snapshot。含报价。"""
     data = (summary or {}).get("data") or {}
     nr = (notes_rate or {}).get("data") or {}
+    price_info = data.get("priceInfoList") or data.get("price") or data.get("priceInfo")
     return {
         "followers": _int(data.get("fansNum") or data.get("fans")),
         "engagementRate": _float(data.get("interactionRate") or data.get("engagementRate")),
@@ -52,6 +74,8 @@ def _snapshot(summary: dict, notes_rate: dict) -> dict:
         "avgShares": _int(nr.get("averageShares") or nr.get("avgShares")),
         "avgViews": _int(nr.get("averageViews") or nr.get("avgViews")),
         "hitRatio": _float(nr.get("hitRatio") or nr.get("popularRate")),
+        "priceNote": _price_note(price_info),
+        "priceInfoList": price_info,
     }
 
 

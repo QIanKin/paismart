@@ -62,8 +62,9 @@ public class SpotlightOauthRefreshTool implements Tool {
 
     @Override public String description() {
         return "用存量 refresh_token 调用小红书聚光 MAPI /oauth2/refresh_token，换一对新的 access_token/refresh_token 并写回数据库。"
-                + "适用于 ping 显示 token 快过期或已过期时的自愈。属于破坏性写操作，首次调用会要求二次确认。"
-                + "未配 XHS_SPOTLIGHT_APP_ID/SECRET 时会返回 config_missing。";
+                + "适用于 ping 显示 token 快过期或已过期、或调数据工具（spotlight_balance_info / spotlight_campaign_list / "
+                + "spotlight_unit_list / spotlight_report_offline_advertiser）返回 cookie_invalid 时的自愈。"
+                + "属于破坏性写操作，首次调用会要求二次确认。未配 XHS_SPOTLIGHT_APP_ID/SECRET 时会返回 config_missing。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
