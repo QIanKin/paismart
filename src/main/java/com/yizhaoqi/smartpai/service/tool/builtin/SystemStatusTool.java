@@ -12,6 +12,7 @@ import com.yizhaoqi.smartpai.service.tool.ToolRegistry;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
 import com.yizhaoqi.smartpai.service.xhs.XhsCookieService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -51,7 +52,9 @@ public class SystemStatusTool implements Tool {
     @Value("${smartpai.xhs.spotlight-seed.advertiser-id:}")
     private String spotlightAdvertiserId;
 
-    public SystemStatusTool(XhsCookieService cookies, SkillRegistry skills, ToolRegistry tools) {
+    public SystemStatusTool(XhsCookieService cookies, SkillRegistry skills, @Lazy ToolRegistry tools) {
+        // ToolRegistry itself depends on the full List<Tool>, which includes this bean, forming a cycle.
+        // Resolve by letting Spring inject a lazy proxy; the real ToolRegistry is only resolved on first call().
         this.cookies = cookies;
         this.skills = skills;
         this.tools = tools;
