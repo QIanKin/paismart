@@ -65,6 +65,27 @@ public interface Tool {
     }
 
     /**
+     * 是否需要用户二次确认。非空表示"本次调用必须等用户明确放行"，{@link ToolExecutor} 会：
+     * <ol>
+     *   <li>短路 {@link #call} —— 工具不会真的执行；</li>
+     *   <li>回灌一个 {@code confirmation_required} 的 {@link ToolResult}，携带 summary/reason/risks 和
+     *       运行时生成的 {@code confirmToken}；</li>
+     *   <li>LLM 下一轮重新调用，必须带 {@code _confirm=true} + {@code _confirmToken=<原 token>}。</li>
+     * </ol>
+     *
+     * <p>{@code _confirmToken} 对 (toolName + 规范化 input) 做 SHA-256，防止 LLM 在二次调用时
+     * 偷偷改掉参数——改了 token 就对不上，Executor 会再次要求确认。
+     *
+     * <p>默认返回 null 表示本工具不需要确认。破坏性工具（{@code isDestructive=true}）建议覆盖，
+     * 至少声明一句 summary 让终端用户一眼看懂"要干嘛"。
+     *
+     * <p>方法接收的 input 已经剥离了 _confirm/_confirmToken 等保留字段，实现侧看到的是"业务参数"。
+     */
+    default ConfirmationRequest requiresConfirmation(ToolContext ctx, JsonNode input) {
+        return null;
+    }
+
+    /**
      * 是否启用。可通过运行时配置关闭某个工具。ToolRegistry 启动时只收集启用的工具。
      */
     default boolean isEnabled() {
