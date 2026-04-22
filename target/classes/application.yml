@@ -4,7 +4,7 @@ server:
 spring:
   # 基础设施连接统一从 `.env` / 环境变量读取，避免把敏感信息写死在仓库。
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/PaiSmart?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     username: ${SPRING_DATASOURCE_USERNAME:root}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -239,6 +239,28 @@ smartpai:
       label: ${XHS_COOKIE_SEED_LABEL:seed-openclaw-backup}
       note: ${XHS_COOKIE_SEED_NOTE:从 openclaw-backup 导入的种子 cookie（公司共享池）}
       priority: ${XHS_COOKIE_SEED_PRIORITY:20}
+    # 启动时把聚光 MarketingAPI 的 OAuth2 凭证从环境变量注入（幂等，按 label 去重）。
+    # 要开启就把 enabled 置 true 并把三个 token 填到环境变量里，启动后会落到 xhs_cookies(platform=xhs_spotlight)。
+    # 后续轮换只需要：改 env → 在 /data-sources 删掉旧记录 → 重启。
+    spotlight-seed:
+      enabled: ${XHS_SPOTLIGHT_SEED_ENABLED:false}
+      org: ${XHS_SPOTLIGHT_SEED_ORG:default}
+      label: ${XHS_SPOTLIGHT_SEED_LABEL:seed-env-spotlight}
+      priority: ${XHS_SPOTLIGHT_SEED_PRIORITY:20}
+      note: ${XHS_SPOTLIGHT_SEED_NOTE:从环境变量注入的聚光 OAuth 凭证（公司共享池）}
+      advertiser-id: ${XHS_SPOTLIGHT_ADVERTISER_ID:}
+      access-token: ${XHS_SPOTLIGHT_ACCESS_TOKEN:}
+      refresh-token: ${XHS_SPOTLIGHT_REFRESH_TOKEN:}
+      # 留空 = 用 now + default-ttl-seconds；实际业务员知道拿 token 的时间时可以填 ISO-8601
+      expires-at: ${XHS_SPOTLIGHT_EXPIRES_AT:}
+      default-ttl-seconds: ${XHS_SPOTLIGHT_DEFAULT_TTL_SECONDS:7200}
+    # 聚光 MarketingAPI 开放平台分配给应用的 app_id / secret。
+    # 注意：这不是 advertiser_id，是在 https://ad.xiaohongshu.com 开放平台创建应用后拿到的
+    # 开发者凭证，用于 server-to-server 刷 refresh_token。没配的话 spotlight_oauth_refresh 会直接报 config_missing。
+    spotlight:
+      app-id: ${XHS_SPOTLIGHT_APP_ID:}
+      app-secret: ${XHS_SPOTLIGHT_APP_SECRET:}
+      refresh-url: ${XHS_SPOTLIGHT_REFRESH_URL:https://adapi.xiaohongshu.com/api/open/oauth2/refresh_token}
 
 # 微信支付相关配置
 wx:

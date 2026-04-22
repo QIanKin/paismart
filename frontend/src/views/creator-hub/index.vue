@@ -344,24 +344,45 @@ const columns = computed<DataTableColumns<Api.Creator.Account>>(() => [
     key: 'displayName',
     title: '账号',
     minWidth: 220,
-    render: row => (
-      <div class="flex items-center gap-3">
-        <NAvatar size={36} src={row.avatarUrl ?? undefined} round>
-          {(row.displayName || row.handle || '?').slice(0, 1)}
-        </NAvatar>
-        <div class="flex-col">
-          <span class="font-semibold">{row.displayName || row.handle || '-'}</span>
-          <span class="text-xs text-stone-500">
-            @{row.handle || row.platformUserId}
-            {row.verified ? (
-              <NTag class="ml-1" size="tiny" type="success">
-                已认证
-              </NTag>
-            ) : null}
-          </span>
+    render: row => {
+      const initial = (row.displayName || row.handle || '?').slice(0, 1);
+      return (
+        <div class="flex items-center gap-3">
+          {row.avatarUrl ? (
+            <img
+              src={row.avatarUrl}
+              referrerpolicy="no-referrer"
+              alt={initial}
+              class="h-9 w-9 flex-shrink-0 rounded-full b-1 b-stone-200 bg-stone-100 object-cover"
+              onError={(e: Event) => {
+                const img = e.target as HTMLImageElement;
+                img.style.display = 'none';
+                const sib = img.nextElementSibling as HTMLElement | null;
+                if (sib) sib.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <NAvatar
+            size={36}
+            round
+            style={{ display: row.avatarUrl ? 'none' : 'flex', flexShrink: 0 }}
+          >
+            {initial}
+          </NAvatar>
+          <div class="flex-col">
+            <span class="font-semibold">{row.displayName || row.handle || '-'}</span>
+            <span class="text-xs text-stone-500">
+              @{row.handle || row.platformUserId}
+              {row.verified ? (
+                <NTag class="ml-1" size="tiny" type="success">
+                  已认证
+                </NTag>
+              ) : null}
+            </span>
+          </div>
         </div>
-      </div>
-    )
+      );
+    }
   },
   {
     key: 'categoryMain',

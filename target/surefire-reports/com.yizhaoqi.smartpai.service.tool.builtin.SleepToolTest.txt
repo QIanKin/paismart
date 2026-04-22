@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.yizhaoqi.smartpai.service.tool.builtin.SleepToolTest
 -------------------------------------------------------------------------------
-Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.039 s -- in com.yizhaoqi.smartpai.service.tool.builtin.SleepToolTest
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.043 s -- in com.yizhaoqi.smartpai.service.tool.builtin.SleepToolTest
