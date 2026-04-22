@@ -14,7 +14,8 @@ import { NButton, NEmpty, NScrollbar, NSpin, NTag, NTooltip } from 'naive-ui';
 import SvgIcon from '@/components/custom/svg-icon.vue';
 import { fetchSessionMessages } from '@/service/api';
 import { VueMarkdownIt } from '@/vendor/vue-markdown-shiki';
-import { mapServerMessages, useAgentSessionStore } from './session-bus';
+import { type ErrorCodeHelp, lookupErrorHelp } from './agent-error-codes';
+import { type ToolCallView, mapServerMessages, useAgentSessionStore } from './session-bus';
 
 interface Props {
   projectId: number;
@@ -287,6 +288,22 @@ function todoStatusClass(status: string) {
   if (status === 'cancelled') return 'text-stone-400 line-through';
   return 'text-stone-500';
 }
+
+// Phase 4b：工具失败时，读取 tool_result.meta.errorCode，查表得到友好标签 + 帮助链接
+function getErrorHelp(call: ToolCallView): ErrorCodeHelp | null {
+  const code = call.result?.meta?.errorCode;
+  return code ? lookupErrorHelp(String(code)) : null;
+}
+
+const router = useRouter();
+
+function handleErrorAction(action: NonNullable<ErrorCodeHelp['action']>) {
+  if (action.to) {
+    router.push(action.to);
+  } else if (action.href) {
+    window.open(action.href, '_blank', 'noopener');
+  }
+}
 </script>
 
 <template>
@@ -387,6 +404,22 @@ function todoStatusClass(status: string) {
                   class="pl-10px text-xs text-stone-400"
                 >
                   <span class="mr-1 animate-pulse">›</span>{{ call.progressText }}
+                </div>
+                <!-- Phase 4b: 工具失败时展示 errorCode 徽章 + 帮助跳转 -->
+                <div
+                  v-if="call.status === 'error' && getErrorHelp(call)"
+                  class="flex items-center gap-2 pl-10px text-xs"
+                >
+                  <NTag size="tiny" type="error" :bordered="false">
+                    {{ getErrorHelp(call)!.label }}
+                  </NTag>
+                  <a
+                    v-if="getErrorHelp(call)!.action"
+                    class="cursor-pointer text-primary-500 hover:underline"
+                    @click="handleErrorAction(getErrorHelp(call)!.action!)"
+                  >
+                    {{ getErrorHelp(call)!.action!.text }} →
+                  </a>
                 </div>
               </div>
             </div>

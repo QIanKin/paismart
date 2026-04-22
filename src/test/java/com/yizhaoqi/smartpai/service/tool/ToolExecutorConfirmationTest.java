@@ -151,7 +151,10 @@ class ToolExecutorConfirmationTest {
                 ToolContext.builder().userId("u1").orgTag("acme").role("admin").build());
 
         assertTrue(exec.result().isError());
-        assertTrue(exec.result().summary().startsWith("permission_denied"));
+        // Phase 4b: errorCode 结构化到 meta.errorCode；summary 只保留人话原因
+        assertEquals("permission_denied", exec.result().meta().get("errorCode"));
+        assertEquals("nope", exec.result().summary(),
+                "Phase 4b: summary 应为 deny reason 本身，不再带 permission_denied: 前缀");
     }
 
     @Test

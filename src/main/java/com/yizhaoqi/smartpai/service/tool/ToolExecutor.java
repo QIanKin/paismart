@@ -60,7 +60,7 @@ public class ToolExecutor {
             if (perm instanceof PermissionResult.Deny deny) {
                 logger.warn("Tool [{}] 权限拒绝: user={}, reason={}",
                         tool.name(), ctx.userId(), deny.reason());
-                ToolResult res = ToolResult.error("permission_denied: " + deny.reason());
+                ToolResult res = ToolResult.error(ToolErrors.PERMISSION_DENIED, deny.reason());
                 return new ToolExecution(tool, input, res, System.currentTimeMillis() - start);
             }
             if (perm instanceof PermissionResult.Allow allow && allow.rewrittenInput() != null) {
@@ -69,7 +69,7 @@ public class ToolExecutor {
 
             if (ctx.isCancelled()) {
                 return new ToolExecution(tool, input,
-                        ToolResult.error("cancelled_by_user"),
+                        ToolResult.error("cancelled_by_user", "操作已被用户取消"),
                         System.currentTimeMillis() - start);
             }
 
@@ -106,7 +106,7 @@ public class ToolExecutor {
             logger.error("Tool [{}] 执行失败 cost={}ms user={}", tool.name(), cost, ctx.userId(), ex);
             Map<String, Object> extra = new LinkedHashMap<>();
             extra.put("exception", ex.getClass().getSimpleName());
-            ToolResult res = ToolResult.error(safeMessage(ex), extra);
+            ToolResult res = ToolResult.error(ToolErrors.INTERNAL, safeMessage(ex), extra);
             return new ToolExecution(tool, input, res, cost);
         }
     }
@@ -271,8 +271,8 @@ public class ToolExecutor {
         data.put("howToProceed", "用 ask_user_question 跟用户讲清 summary/risks 拿到同意后，"
                 + "再次调用 " + tool.name() + " 时带上 _confirm=true 和 _confirmToken=\"" + expectedToken + "\"。"
                 + "禁止绕过——修改业务参数会让 _confirmToken 失效。");
-        String humanSummary = "confirmation_required: " + (req.summary() == null ? tool.name() : req.summary());
-        return ToolResult.error(humanSummary, data);
+        String humanSummary = "需要确认：" + (req.summary() == null ? tool.name() : req.summary());
+        return ToolResult.error(ToolErrors.CONFIRMATION_REQUIRED, humanSummary, data);
     }
 
     public ObjectNode describeForWs(ToolExecution exec) {

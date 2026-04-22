@@ -6,6 +6,7 @@ import com.yizhaoqi.smartpai.service.tool.PermissionResult;
 import com.yizhaoqi.smartpai.service.tool.Tool;
 import com.yizhaoqi.smartpai.service.tool.ToolContext;
 import com.yizhaoqi.smartpai.service.tool.ToolInputSchemas;
+import com.yizhaoqi.smartpai.service.tool.ToolErrors;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
 import com.yizhaoqi.smartpai.service.xhs.XhsLoginSessionService;
 import org.springframework.stereotype.Component;
@@ -100,9 +101,10 @@ public class XhsQrLoginStartTool implements Tool {
         try {
             s = loginService.start(ctx.orgTag(), ctx.userId(), platforms.isEmpty() ? null : platforms);
         } catch (IllegalArgumentException e) {
-            return ToolResult.error("bad_request: " + e.getMessage());
+            return ToolResult.error(ToolErrors.BAD_REQUEST, "启动扫码登录失败：" + e.getMessage());
         } catch (Exception e) {
-            return ToolResult.error("internal: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return ToolResult.error(ToolErrors.INTERNAL,
+                    "启动扫码登录时出现未预期错误：" + e.getClass().getSimpleName() + "：" + e.getMessage());
         }
 
         Map<String, Object> data = new LinkedHashMap<>();

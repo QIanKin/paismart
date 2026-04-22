@@ -6,6 +6,7 @@ import com.yizhaoqi.smartpai.service.tool.PermissionResult;
 import com.yizhaoqi.smartpai.service.tool.Tool;
 import com.yizhaoqi.smartpai.service.tool.ToolContext;
 import com.yizhaoqi.smartpai.service.tool.ToolInputSchemas;
+import com.yizhaoqi.smartpai.service.tool.ToolErrors;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
 import com.yizhaoqi.smartpai.service.xhs.XhsCookieService;
 import org.springframework.stereotype.Component;
@@ -79,7 +80,7 @@ public class XhsCookieUpdateTool implements Tool {
 
     @Override
     public ToolResult call(ToolContext ctx, JsonNode input) {
-        if (!input.hasNonNull("id")) return ToolResult.error("id 必填");
+        if (!input.hasNonNull("id")) return ToolResult.error(ToolErrors.BAD_REQUEST, "id 是必填字段");
         long id = input.get("id").asLong();
         String cookie = text(input, "cookie");
         String accountLabel = text(input, "accountLabel");
@@ -91,7 +92,8 @@ public class XhsCookieUpdateTool implements Tool {
             try {
                 status = XhsCookie.Status.valueOf(statusStr.toUpperCase());
             } catch (IllegalArgumentException e) {
-                return ToolResult.error("status 非法：" + statusStr);
+                return ToolResult.error(ToolErrors.BAD_REQUEST,
+                        "status 不是合法值：" + statusStr + "（可选 ACTIVE / EXPIRED / DISABLED）");
             }
         }
 
@@ -99,13 +101,16 @@ public class XhsCookieUpdateTool implements Tool {
         try {
             updated = cookies.update(id, ctx.orgTag(), cookie, accountLabel, note, priority, status);
         } catch (IllegalArgumentException e) {
-            return ToolResult.error("cookie_invalid: " + e.getMessage());
+            return ToolResult.error(ToolErrors.COOKIE_INVALID,
+                    "cookie 内容不合法：" + e.getMessage() + "。建议在数据源页重新扫码。");
         } catch (Exception e) {
-            return ToolResult.error("internal: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return ToolResult.error(ToolErrors.INTERNAL,
+                    "更新 cookie 时出现未预期错误：" + e.getClass().getSimpleName() + "：" + e.getMessage());
         }
 
         if (updated.isEmpty()) {
-            return ToolResult.error("not_found: cookie #" + id + " 不存在或不属于当前 org");
+            return ToolResult.error(ToolErrors.NOT_FOUND,
+                    "cookie #" + id + " 不存在或不属于当前 org");
         }
         XhsCookie c = updated.get();
         Map<String, Object> data = new LinkedHashMap<>();

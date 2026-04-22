@@ -7,6 +7,7 @@ import com.yizhaoqi.smartpai.service.tool.PermissionResult;
 import com.yizhaoqi.smartpai.service.tool.Tool;
 import com.yizhaoqi.smartpai.service.tool.ToolContext;
 import com.yizhaoqi.smartpai.service.tool.ToolInputSchemas;
+import com.yizhaoqi.smartpai.service.tool.ToolErrors;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
 import com.yizhaoqi.smartpai.service.xhs.XhsCookieService;
 import org.springframework.stereotype.Component;
@@ -101,12 +102,13 @@ public class XhsCookieDeleteTool implements Tool {
 
     @Override
     public ToolResult call(ToolContext ctx, JsonNode input) {
-        if (!input.hasNonNull("id")) return ToolResult.error("id 必填");
+        if (!input.hasNonNull("id")) return ToolResult.error(ToolErrors.BAD_REQUEST, "id 是必填字段");
         long id = input.get("id").asLong();
 
         Optional<XhsCookie> before = cookies.findById(id, ctx.orgTag());
         if (before.isEmpty()) {
-            return ToolResult.error("not_found: cookie #" + id + " 不存在或不属于当前 org");
+            return ToolResult.error(ToolErrors.NOT_FOUND,
+                    "cookie #" + id + " 不存在或不属于当前 org");
         }
         XhsCookie snapshot = before.get();
 
@@ -114,10 +116,12 @@ public class XhsCookieDeleteTool implements Tool {
         try {
             ok = cookies.delete(id, ctx.orgTag());
         } catch (Exception e) {
-            return ToolResult.error("internal: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return ToolResult.error(ToolErrors.INTERNAL,
+                    "删除 cookie 时出现未预期错误：" + e.getClass().getSimpleName() + "：" + e.getMessage());
         }
         if (!ok) {
-            return ToolResult.error("not_found: delete 返回 false（并发删除？）");
+            return ToolResult.error(ToolErrors.NOT_FOUND,
+                    "cookie #" + id + " 已被并发删除");
         }
 
         Map<String, Object> data = new LinkedHashMap<>();

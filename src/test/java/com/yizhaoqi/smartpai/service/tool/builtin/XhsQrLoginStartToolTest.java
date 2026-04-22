@@ -91,7 +91,10 @@ class XhsQrLoginStartToolTest {
         assertTrue(r.isError());
         @SuppressWarnings("unchecked")
         Map<String, Object> payload = (Map<String, Object>) r.data();
-        assertTrue(String.valueOf(payload.get("message")).contains("bad_request"));
+        // Phase 4b: errorCode 走结构化 data.code + meta.errorCode
+        assertEquals("bad_request", payload.get("code"));
+        assertEquals("bad_request", r.meta().get("errorCode"));
+        assertTrue(String.valueOf(payload.get("message")).contains("platforms 不能为空"));
     }
 
     @Test

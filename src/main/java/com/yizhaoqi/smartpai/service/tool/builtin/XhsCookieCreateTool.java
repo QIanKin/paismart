@@ -6,6 +6,7 @@ import com.yizhaoqi.smartpai.service.tool.PermissionResult;
 import com.yizhaoqi.smartpai.service.tool.Tool;
 import com.yizhaoqi.smartpai.service.tool.ToolContext;
 import com.yizhaoqi.smartpai.service.tool.ToolInputSchemas;
+import com.yizhaoqi.smartpai.service.tool.ToolErrors;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
 import com.yizhaoqi.smartpai.service.xhs.XhsCookieService;
 import org.springframework.stereotype.Component;
@@ -89,7 +90,7 @@ public class XhsCookieCreateTool implements Tool {
         Integer priority = input.hasNonNull("priority") ? input.get("priority").asInt() : null;
 
         if (platform == null || cookie == null) {
-            return ToolResult.error("platform / cookie 必填");
+            return ToolResult.error(ToolErrors.BAD_REQUEST, "platform 和 cookie 是必填字段");
         }
 
         XhsCookie saved;
@@ -98,9 +99,11 @@ public class XhsCookieCreateTool implements Tool {
                     "agent:" + (ctx.userId() == null ? "unknown" : ctx.userId()));
         } catch (IllegalArgumentException e) {
             // service 层对 web cookie 缺字段会抛 IllegalArgumentException，翻译成业务语义错误给 LLM
-            return ToolResult.error("cookie_invalid: " + e.getMessage());
+            return ToolResult.error(ToolErrors.COOKIE_INVALID,
+                    "cookie 内容不合法：" + e.getMessage() + "。建议在数据源页重新扫码登录。");
         } catch (Exception e) {
-            return ToolResult.error("internal: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return ToolResult.error(ToolErrors.INTERNAL,
+                    "创建 cookie 时出现未预期错误：" + e.getClass().getSimpleName() + "：" + e.getMessage());
         }
 
         Map<String, Object> data = new LinkedHashMap<>();

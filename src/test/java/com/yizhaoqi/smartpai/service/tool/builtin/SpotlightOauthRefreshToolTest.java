@@ -59,7 +59,12 @@ class SpotlightOauthRefreshToolTest {
         assertTrue(r.isError());
         @SuppressWarnings("unchecked")
         Map<String, Object> payload = (Map<String, Object>) r.data();
-        assertTrue(String.valueOf(payload.get("message")).contains("no_target"));
+        // Phase 4b: 结构化 errorCode 进 data.code + meta.errorCode
+        assertEquals("no_target", payload.get("code"));
+        assertEquals("no_target", r.meta().get("errorCode"));
+        // 人话 summary 里不应该有 no_target 前缀
+        assertFalse(r.summary().startsWith("no_target:"));
+        assertTrue(String.valueOf(payload.get("message")).contains("数据源"));
     }
 
     @Test

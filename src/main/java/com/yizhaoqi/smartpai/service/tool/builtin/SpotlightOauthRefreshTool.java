@@ -5,6 +5,7 @@ import com.yizhaoqi.smartpai.model.xhs.XhsCookie;
 import com.yizhaoqi.smartpai.service.tool.PermissionResult;
 import com.yizhaoqi.smartpai.service.tool.Tool;
 import com.yizhaoqi.smartpai.service.tool.ToolContext;
+import com.yizhaoqi.smartpai.service.tool.ToolErrors;
 import com.yizhaoqi.smartpai.service.tool.ToolInputSchemas;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
 import com.yizhaoqi.smartpai.service.xhs.SpotlightTokenRefresher;
@@ -89,8 +90,8 @@ public class SpotlightOauthRefreshTool implements Tool {
     public ToolResult call(ToolContext ctx, JsonNode input) {
         Long id = resolveTarget(ctx.orgTag(), input);
         if (id == null) {
-            return ToolResult.error("no_target: 当前 org 下没有匹配的 xhs_spotlight 记录可刷新。"
-                    + "建议先调用 xhs_cookie_list 看清单，或先用 xhs_cookie_create 录入凭证。");
+            return ToolResult.error(ToolErrors.NO_TARGET,
+                    "当前组织下没有可刷新的聚光凭证。请先去数据源页录入聚光账号（/data-sources → 聚光）。");
         }
         SpotlightTokenRefresher.Result r = refresher.refresh(id, ctx.orgTag());
         Map<String, Object> data = new LinkedHashMap<>();
@@ -102,13 +103,35 @@ public class SpotlightOauthRefreshTool implements Tool {
         data.put("accessTokenTtlSeconds", r.accessTokenTtlSeconds());
 
         if (!r.ok()) {
-            String summary = String.format("spotlight_oauth_refresh → 失败 id=%d (%s)",
-                    id, r.errorType() == null ? "internal" : r.errorType());
-            return ToolResult.error(summary, data);
+            // 把 refresher 的 errorType 直接作为 errorCode 透出——它已经是结构化的（config_missing/not_found 等）
+            String code = r.errorType() == null ? ToolErrors.INTERNAL : r.errorType();
+            String human = humanizeRefreshError(code, r.message(), id);
+            return ToolResult.error(code, human, data);
         }
         String summary = String.format("spotlight_oauth_refresh → #%d 刷新成功，新 expiresAt=%s (ttl=%ds)",
                 id, r.newExpiresAt(), r.accessTokenTtlSeconds());
         return ToolResult.of(data, summary);
+    }
+
+    /** 把 refresher 原始 errorType + message 翻成对用户友好的中文说明。 */
+    private String humanizeRefreshError(String code, String rawMsg, Long id) {
+        String suffix = rawMsg == null ? "" : "（" + rawMsg + "）";
+        return switch (code) {
+            case ToolErrors.CONFIG_MISSING ->
+                    "聚光开放平台 app_id/secret 未配置。请让运维在后端 .env 里补上 XHS_SPOTLIGHT_APP_ID / XHS_SPOTLIGHT_APP_SECRET 后重启服务。";
+            case ToolErrors.NOT_FOUND ->
+                    "cookie #" + id + " 不存在或不属于当前组织" + suffix;
+            case ToolErrors.WRONG_PLATFORM ->
+                    "cookie #" + id + " 不是聚光凭证，无法走 OAuth 刷新流程" + suffix;
+            case ToolErrors.MISSING_REFRESH_TOKEN ->
+                    "cookie #" + id + " 没有 refresh_token，无法自动续签。请到数据源页重新录入完整聚光凭证。";
+            case "remote_error", ToolErrors.UPSTREAM_ERROR, ToolErrors.UPSTREAM_REJECTED ->
+                    "聚光 API 返回失败" + suffix + "。可能是 refresh_token 已被使用或过期，需要到聚光开放平台重新授权拿一对新凭证。";
+            case ToolErrors.NETWORK, ToolErrors.TIMEOUT ->
+                    "聚光 API 网络不可达" + suffix + "。检查服务器到 adapi.xiaohongshu.com 的出站连通性。";
+            default ->
+                    "聚光凭证刷新失败" + suffix;
+        };
     }
 
     private Long resolveTarget(String orgTag, JsonNode input) {

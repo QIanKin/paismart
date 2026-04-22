@@ -80,7 +80,13 @@ class XhsCookieCreateToolTest {
         assertTrue(r.isError());
         @SuppressWarnings("unchecked")
         Map<String, Object> payload = (Map<String, Object>) r.data();
-        assertTrue(String.valueOf(payload.get("message")).contains("cookie_invalid"));
+        // Phase 4b: errorCode 走 data.code + meta.errorCode，summary/message 是纯人话
+        assertEquals("cookie_invalid", payload.get("code"));
+        assertEquals("cookie_invalid", r.meta().get("errorCode"));
+        assertTrue(String.valueOf(payload.get("message")).contains("cookie 内容不合法"),
+                "summary 应为中文人话，不再带 code 前缀");
+        assertFalse(r.summary().startsWith("cookie_invalid:"),
+                "Phase 4b: summary 不应再有 code 前缀");
     }
 
     @Test
