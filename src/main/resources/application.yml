@@ -254,6 +254,13 @@ smartpai:
       # 留空 = 用 now + default-ttl-seconds；实际业务员知道拿 token 的时间时可以填 ISO-8601
       expires-at: ${XHS_SPOTLIGHT_EXPIRES_AT:}
       default-ttl-seconds: ${XHS_SPOTLIGHT_DEFAULT_TTL_SECONDS:7200}
+    # 聚光 MarketingAPI 开放平台分配给应用的 app_id / secret。
+    # 注意：这不是 advertiser_id，是在 https://ad.xiaohongshu.com 开放平台创建应用后拿到的
+    # 开发者凭证，用于 server-to-server 刷 refresh_token。没配的话 spotlight_oauth_refresh 会直接报 config_missing。
+    spotlight:
+      app-id: ${XHS_SPOTLIGHT_APP_ID:}
+      app-secret: ${XHS_SPOTLIGHT_APP_SECRET:}
+      refresh-url: ${XHS_SPOTLIGHT_REFRESH_URL:https://adapi.xiaohongshu.com/api/open/oauth2/refresh_token}
 
 # 微信支付相关配置
 wx:
