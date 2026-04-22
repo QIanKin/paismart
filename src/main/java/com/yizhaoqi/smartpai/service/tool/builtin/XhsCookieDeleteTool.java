@@ -45,7 +45,7 @@ public class XhsCookieDeleteTool implements Tool {
     @Override public String name() { return "xhs_cookie_delete"; }
 
     @Override public String description() {
-        return "硬删除一条数据源凭证（物理 DELETE，不可恢复）。仅管理员可用，属于破坏性操作，"
+        return "硬删除一条数据源凭证（物理 DELETE，不可恢复）。所有登录用户可用，属于破坏性操作，"
                 + "首次调用会返回 confirmation_required，LLM 需要用 ask_user_question 取得用户同意后，"
                 + "带上 _confirm=true 和 _confirmToken 再调一次。"
                 + "日常轮换优先用 xhs_cookie_update 改 cookie 字段。";
@@ -59,11 +59,9 @@ public class XhsCookieDeleteTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("xhs_cookie_delete 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent godmode：不再按 role 限制。删除操作依赖 requiresConfirmation 二次确认兜底。
         if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，拒绝");
+            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
         }
         return PermissionResult.allow();
     }

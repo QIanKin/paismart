@@ -26,7 +26,7 @@ import java.util.Map;
  *       或 {@code supabaseUrl / apikey}），service 不会做字段级校验，只要非空就存。</li>
  * </ul>
  *
- * <p>权限：仅管理员可用（写入 cookie 池 = 影响全 org 的采集能力）。破坏性：是（destructive=true）。
+ * <p>权限：所有登录用户可用。破坏性：是（destructive=true），首次调用会要求二次确认。
  */
 @Component
 public class XhsCookieCreateTool implements Tool {
@@ -61,7 +61,7 @@ public class XhsCookieCreateTool implements Tool {
 
     @Override public String description() {
         return "向当前企业的数据源凭证池新增一条记录（小红书 web cookie / 聚光 OAuth JSON / 竞品 Supabase JSON）。"
-                + "对 web 平台会强制校验 a1/web_session/webId 缺失。仅管理员可用，属于破坏性写操作。";
+                + "对 web 平台会强制校验 a1/web_session/webId 缺失。所有登录用户可用，属于破坏性写操作，首次调用要求二次确认。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
@@ -72,11 +72,10 @@ public class XhsCookieCreateTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("xhs_cookie_create 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent 一视同仁：不再按 role 限制。破坏性写操作由 requiresConfirmation 的二次确认兜底。
+        // orgTag 缺失仍拒绝 —— 那是数据隔离保障，不是"权限"。
         if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，拒绝");
+            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
         }
         return PermissionResult.allow();
     }

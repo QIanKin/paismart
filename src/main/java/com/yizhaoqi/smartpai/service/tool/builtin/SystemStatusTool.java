@@ -32,7 +32,7 @@ import java.util.TreeMap;
  *         附上修复建议文本供 LLM 直接转发给用户</li>
  * </ul>
  *
- * <p>本工具只读，不碰数据库写路径，仅管理员可用（会看到 ops 级别的拓扑）。
+ * <p>本工具只读，不碰数据库写路径；Phase 4c 起对所有登录用户开放。
  */
 @Component
 public class SystemStatusTool implements Tool {
@@ -64,7 +64,7 @@ public class SystemStatusTool implements Tool {
 
     @Override public String description() {
         return "返回系统自检快照：数据源 cookie 按 platform/状态的分桶、skill/tool 数量、关键配置是否缺失。"
-                + "在用户问『现在系统状况如何/数据抓取能用吗/缺什么配置』时先调这个。仅管理员可用。";
+                + "在用户问『现在系统状况如何/数据抓取能用吗/缺什么配置』时先调这个。只读，所有用户可用。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
@@ -72,9 +72,7 @@ public class SystemStatusTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("system_status 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent godmode：所有登录用户都能让 Agent 看当前 org 的系统运行状态（只读聚合，无敏感凭证内容）。
         return PermissionResult.allow();
     }
 

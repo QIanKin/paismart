@@ -35,11 +35,11 @@ class XhsQrLoginStartToolTest {
     }
 
     @Test
-    void nonAdminDenied() {
+    void nonAdminAlsoAllowed_godmode() {
         PermissionResult r = tool.checkPermission(
                 ToolContext.builder().userId("u1").orgTag("acme").role("user").build(),
                 mapper.createObjectNode());
-        assertInstanceOf(PermissionResult.Deny.class, r);
+        assertInstanceOf(PermissionResult.Allow.class, r);
     }
 
     @Test

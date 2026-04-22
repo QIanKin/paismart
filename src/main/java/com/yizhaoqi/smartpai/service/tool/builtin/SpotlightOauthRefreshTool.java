@@ -35,7 +35,7 @@ import java.util.Map;
  * <p>失败常见 errorType：{@code config_missing / not_found / wrong_platform / missing_refresh_token /
  * remote_error / internal}，文本直接返回给 LLM 让它知道该怎么回复用户。
  *
- * <p>权限：仅管理员。破坏性：是（写回了 cookie 行）。
+ * <p>权限：所有登录用户可用。破坏性：是（写回 cookie 行，走二次确认协议）。
  */
 @Component
 public class SpotlightOauthRefreshTool implements Tool {
@@ -62,7 +62,7 @@ public class SpotlightOauthRefreshTool implements Tool {
 
     @Override public String description() {
         return "用存量 refresh_token 调用小红书聚光 MAPI /oauth2/refresh_token，换一对新的 access_token/refresh_token 并写回数据库。"
-                + "适用于 ping 显示 token 快过期或已过期时的自愈。仅管理员可用，属于破坏性写操作。"
+                + "适用于 ping 显示 token 快过期或已过期时的自愈。属于破坏性写操作，首次调用会要求二次确认。"
                 + "未配 XHS_SPOTLIGHT_APP_ID/SECRET 时会返回 config_missing。";
     }
 
@@ -77,11 +77,9 @@ public class SpotlightOauthRefreshTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("spotlight_oauth_refresh 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent godmode：OAuth 刷新不再限 admin。二次确认 + 并发串行已经够稳。
         if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，拒绝");
+            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
         }
         return PermissionResult.allow();
     }

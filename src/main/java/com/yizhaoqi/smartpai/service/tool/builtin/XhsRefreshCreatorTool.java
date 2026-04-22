@@ -35,7 +35,7 @@ public class XhsRefreshCreatorTool implements Tool {
 
     @Override public String description() {
         return "用小红书 PC 端 cookie 拉取指定博主最近 N 条笔记并入库。输入为 creator_accounts.id（platform=xhs）。"
-                + "需要后台 admin 预先录入 xhs_pc cookie，失败时会返回 no_cookie 或 cookie_invalid。";
+                + "需要预先有可用的 xhs_pc cookie（可通过 xhs_qr_login_start 扫码或 xhs_cookie_create 录入），失败时会返回 no_cookie 或 cookie_invalid。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }

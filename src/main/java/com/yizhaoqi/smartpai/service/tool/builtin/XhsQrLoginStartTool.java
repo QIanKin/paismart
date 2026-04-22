@@ -32,7 +32,7 @@ import java.util.Map;
  *   <li>后续若需要自检进度，用 xhs_cookie_list / xhs_cookie_ping 判断新记录是否落库</li>
  * </ol>
  *
- * <p>权限：仅管理员。属于破坏性（会启动子进程 + 未来会写入 cookie 池）。
+ * <p>权限：所有登录用户可用。属于破坏性（会启动子进程 + 未来会写入 cookie 池），走二次确认。
  */
 @Component
 public class XhsQrLoginStartTool implements Tool {
@@ -64,7 +64,7 @@ public class XhsQrLoginStartTool implements Tool {
     @Override public String description() {
         return "触发一次小红书扫码登录会话，返回 sessionId 和过期时间；扫码采到的 cookie 会自动入 cookie 池。"
                 + "适合 agent 发现 xhs_pc/creator/pgy/qianfan 全部 EXPIRED、但 spotlight 还在（或反之）时"
-                + "自动提示用户扫码续命。仅管理员可用。";
+                + "自动提示用户扫码续命。所有登录用户可用，破坏性操作会要求二次确认。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
@@ -75,14 +75,12 @@ public class XhsQrLoginStartTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("xhs_qr_login_start 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent godmode：扫码登录不再限 admin。破坏性二次确认仍然保留（见 requiresConfirmation）。
         if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，拒绝");
+            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
         }
         if (ctx.userId() == null || ctx.userId().isBlank()) {
-            return PermissionResult.deny("缺少 userId，无法 single-flight");
+            return PermissionResult.deny("缺少 userId，无法做 single-flight 去重");
         }
         return PermissionResult.allow();
     }

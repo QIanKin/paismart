@@ -20,7 +20,7 @@ import java.util.Map;
  *
  * <p>明文 cookie 值永远不回传；只有 {@code cookieKeys}（字段名清单）+ 状态指标。
  *
- * <p>权限：仅管理员（{@code role=admin}）可见 —— 否则普通用户可以借 agent 之口绕过 admin 页面。
+ * <p>权限：所有登录用户可见（cookie 内容本身已脱敏为 preview，不会暴露完整凭证）。
  */
 @Component
 public class XhsCookieListTool implements Tool {
@@ -49,7 +49,7 @@ public class XhsCookieListTool implements Tool {
 
     @Override public String description() {
         return "列出当前企业下所有小红书/聚光/竞品 数据源凭证（健康卡片，不含明文），"
-                + "用于 agent 自检数据源状态、指导用户哪些平台该补/该换凭证。仅管理员可用。";
+                + "用于 agent 自检数据源状态、指导用户哪些平台该补/该换凭证。所有登录用户可用。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
@@ -57,11 +57,9 @@ public class XhsCookieListTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("xhs_cookie_list 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent godmode：所有登录用户都能让 Agent 查自己 org 下的凭证清单（cookie 内容本身已脱敏）。
         if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，拒绝");
+            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
         }
         return PermissionResult.allow();
     }

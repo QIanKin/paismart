@@ -45,7 +45,8 @@ public final class ToolErrors {
 
     // ==== 权限 ====
 
-    /** 当前用户角色不够（大多需要 admin）。 */
+    /** 兜底拒绝（缺 orgTag、URL 被 SSRF 校验拦住、命令走不过 deny-list 等）。
+     *  <b>注意：不再用于"role 不够 admin"</b>，Agent 对所有登录用户都开放。 */
     public static final String PERMISSION_DENIED = "permission_denied";
 
     /** 破坏性工具要求二次确认但 LLM 没带 _confirm=true。由 ToolExecutor 注入。 */

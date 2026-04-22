@@ -29,7 +29,7 @@ import java.util.Map;
  *     <li>给 {@code platform=xhs_pc}：对本 org 下该 platform 的所有 ACTIVE 记录批量 ping。</li>
  * </ul>
  *
- * <p>权限：仅管理员可用。
+ * <p>权限：所有登录用户可用（只读连通性测试）。
  */
 @Component
 public class XhsCookiePingTool implements Tool {
@@ -64,7 +64,7 @@ public class XhsCookiePingTool implements Tool {
 
     @Override public String description() {
         return "对小红书/聚光/竞品 数据源凭证做连通性自检。可按 ids 精准 ping，也可按 platform 批量 ping。"
-                + "失败不会降权 / 不会标 EXPIRED —— 只用于诊断。仅管理员可用。";
+                + "失败不会降权 / 不会标 EXPIRED —— 只用于诊断。所有用户可用。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
@@ -74,11 +74,9 @@ public class XhsCookiePingTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("xhs_cookie_ping 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent godmode：ping 是只读连通性检测，所有登录用户都能让 Agent 触发。
         if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，拒绝");
+            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
         }
         return PermissionResult.allow();
     }

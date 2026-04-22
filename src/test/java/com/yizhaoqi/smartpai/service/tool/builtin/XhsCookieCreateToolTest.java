@@ -51,9 +51,19 @@ class XhsCookieCreateToolTest {
     }
 
     @Test
-    void nonAdminDenied() {
+    void nonAdminAlsoAllowed_godmode() {
+        // Phase 4c: Agent 对所有登录用户开放；role=user 不再被拒。
         PermissionResult r = tool.checkPermission(
                 ToolContext.builder().userId("u1").orgTag("acme").role("user").build(),
+                mapper.createObjectNode());
+        assertInstanceOf(PermissionResult.Allow.class, r);
+    }
+
+    @Test
+    void missingOrgTagStillDenied() {
+        // orgTag 是数据隔离保障，不是 role 权限 —— 必须仍拒绝。
+        PermissionResult r = tool.checkPermission(
+                ToolContext.builder().userId("u1").orgTag(null).role("admin").build(),
                 mapper.createObjectNode());
         assertInstanceOf(PermissionResult.Deny.class, r);
     }

@@ -29,7 +29,7 @@ import java.util.Map;
  *     → 会把该 skill 的 scripts 目录追加到 PATH 头部，脚本名可直接调用。
  *
  * 权限：
- *  - 非 admin 角色默认允许执行（白名单已经收得很严）；
+ *  - 所有登录用户可执行（白名单已经收得很严）；
  *  - 如果命令里出现 sudo / rm 等 deny token，Tool 直接 deny，不进 executor。
  */
 @Component

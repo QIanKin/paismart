@@ -27,7 +27,7 @@ import java.util.Optional;
  *   <li>调优先级：传 {@code priority=20}</li>
  * </ul>
  *
- * <p>对 web 平台（xhs_pc 等）传 cookie 时会强制校验 a1/web_session/webId。权限：仅管理员。破坏性：是。
+ * <p>对 web 平台（xhs_pc 等）传 cookie 时会强制校验 a1/web_session/webId。权限：所有登录用户。破坏性：是。
  */
 @Component
 public class XhsCookieUpdateTool implements Tool {
@@ -58,7 +58,7 @@ public class XhsCookieUpdateTool implements Tool {
     @Override public String description() {
         return "更新已有数据源凭证的字段（cookie 原文 / 标签 / 备注 / 优先级 / 状态）。"
                 + "对 web 平台传 cookie 时会强制校验 a1/web_session/webId。"
-                + "仅管理员可用，属于破坏性写操作。";
+                + "所有登录用户可用，属于破坏性写操作，首次调用会要求二次确认。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
@@ -69,11 +69,9 @@ public class XhsCookieUpdateTool implements Tool {
 
     @Override
     public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        if (!"admin".equalsIgnoreCase(ctx.role())) {
-            return PermissionResult.deny("xhs_cookie_update 仅管理员可用，当前 role=" + ctx.role());
-        }
+        // Agent godmode：不再按 role 限制。破坏性写由 requiresConfirmation 二次确认兜底。
         if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，拒绝");
+            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
         }
         return PermissionResult.allow();
     }
