@@ -163,6 +163,42 @@ PASS=29   WARN=3   FAIL=0   TOTAL=33
 - [ ] 业务员第一天上工跑一次 `start-qiangua-chrome.bat` 并登录千瓜，后续开机脚本加到 Windows 启动项即可
 - [ ] 在 `/data-sources` 页面把 5 个小红书平台都补齐扫码登录（目前只有 spotlight 是 seed 出来的，其余 4 个在测试环境是历史遗留）
 - [ ] 首次管理员创建完把 `.env` 的 `ADMIN_BOOTSTRAP_ENABLED` 改回 `false` 并重启，避免重复注入
+- [ ] **蒲公英必须用"品牌主/机构"账号**。扫码完在 `/data-sources` 页的蒲公英行点"🩺 测角色"（或让 agent 调 `xhs_pgy_whoami`）确认 `role=brand` 再使用 `xhs_fetch_pgy_kol` / `xhs_pgy_kol_detail`。KOL/个人号 cookie 能存但所有 pgy 业务接口会挂（HTTP 401 / `code=-100`）。
+
+---
+
+## 七、蒲公英（xhs_pgy）账号资质专题
+
+**这是目前最容易踩坑的地方**，Spider_XHS 的 `PuGongYingAPI` 做的是"品牌主选 KOL"这件事，普通个人号登不了这条路径：
+
+| 角色 | 登 `pgy.xiaohongshu.com` 看到的东西 | 能否用 `xhs_fetch_pgy_kol` |
+|---|---|---|
+| 品牌主（已开通蒲公英品牌主资质） | `/solar/pre-trade/kol` KOL 选人页面 | ✅ |
+| 机构 / MCN | 机构工作台 | ✅ |
+| 普通博主 / 个人号 | KOL 工作台（接单端） | ❌ 所有 `/api/solar/cooperator/*` 接口返回 `code=-100`「未登录」 |
+
+### 如何一键判断
+
+1. `/data-sources` 的蒲公英面板新增"**品牌主资质**"告警条，扫码前必读
+2. 有 xhs_pgy cookie 后，让 agent 说："调用 xhs_pgy_whoami 工具告诉我账号角色"
+3. 或者管理员在 UI 上点单条 cookie 的「测角色」按钮 → 底层打到 `POST /api/v1/admin/xhs-cookies/{id}/pgy-whoami`
+
+返回示例（不合格）：
+```json
+{"role":"unauthorized","brandQualified":false,"reachable":false,
+ "httpStatus":401,"bodyHead":"{\"code\":-100,...,\"msg\":\"...未登录...\"}"}
+```
+
+返回示例（品牌主，合格）：
+```json
+{"role":"brand","brandQualified":true,"reachable":true,
+ "userId":"...","nickName":"XXX 品牌","latencyMs":420}
+```
+
+### 已经做过的防护
+
+- `xhs_fetch_pgy_kol` / `xhs_pgy_kol_detail` 在跑 Python skill 前**先用 `PgyRoleProbe` 打 user/info**，不合格直接返 `not_brand_account` 错误，**不会白跑 skill、不会冤杀 cookie**。
+- `XhsSkillRunner` 对脚本分类出的非-cookie 类 `errorType`（`signature_failed` / `blocked_or_api_changed` / `remote_non_json` 等）跳过反爬关键词扫描，避免人话文案里的"cookie"/"登录"字样误伤 cookie 状态。
 
 ---
 

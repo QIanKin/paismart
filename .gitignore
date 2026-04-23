@@ -1,0 +1,65 @@
+# ========== Java / Maven ==========
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# ========== IDE ==========
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# ========== OS ==========
+.DS_Store
+Thumbs.db
+
+# ========== Logs & runtime ==========
+logs/
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# ========== Node / frontend ==========
+node_modules/
+frontend/dist/
+frontend/node_modules/
+frontend/.cache/
+skills-bundled/_shared/playwright-runtime/node_modules/
+skills-bundled/**/node_modules/
+skills/**/node_modules/
+.pnpm-store/
+.npm/
+
+# ========== Env / secrets ==========
+.env
+.env.*.local
+!.env.example
+!.env.deploy.example
+!frontend/.env
+!frontend/.env.test
+!frontend/.env.prod
+
+# ========== Agent sandbox / uploads ==========
+var/
+uploads/
+tmp/
+acceptance/smoke-result.csv
+acceptance/dns_probe.sh
+
+# ========== Docker volumes (挂到主机上的) ==========
+data/
+mysql-data/
+minio-data/
+es-data/
+
+# ========== Misc ==========
+*.bak
+*.swp
+*.tmp

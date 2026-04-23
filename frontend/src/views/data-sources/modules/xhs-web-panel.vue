@@ -13,6 +13,7 @@
 import { computed, h, nextTick, reactive, ref, watch } from 'vue';
 import type { DataTableColumns, FormRules, PaginationProps } from 'naive-ui';
 import {
+  NAlert,
   NButton,
   NCard,
   NCode,
@@ -446,6 +447,22 @@ async function copyBookmarklet() {
             </NButton>
           </div>
         </NCard>
+
+        <!-- 蒲公英账号资质警示 -->
+        <NAlert type="warning" :show-icon="true" :bordered="false" size="small" class="py-8px!">
+          <template #header>
+            <span class="text-13px font-semibold">蒲公英（xhs_pgy）只支持"品牌主/机构"账号</span>
+          </template>
+          <div class="text-12px text-stone-600 dark:text-stone-400 leading-relaxed">
+            Spider_XHS 的蒲公英接口只对已在
+            <NButton text tag="a" type="primary" href="https://pgy.xiaohongshu.com/" target="_blank">
+              pgy.xiaohongshu.com
+            </NButton>
+            开通"品牌主 / 机构"资质的账号有效。用普通博主 / 个人号扫码虽然能存下 cookie，但调
+            <code>xhs_fetch_pgy_kol</code> / <code>xhs_pgy_kol_detail</code> 会全部挂。
+            不确定当前账号是否合格，让 AI 调一下 <code>xhs_pgy_whoami</code> 工具自测。
+          </div>
+        </NAlert>
 
         <!-- 次要工具栏 -->
         <div class="flex flex-wrap items-center justify-between gap-2">

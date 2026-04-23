@@ -6,6 +6,7 @@ import com.yizhaoqi.smartpai.config.XhsLoginProperties;
 import com.yizhaoqi.smartpai.model.xhs.XhsLoginSession;
 import com.yizhaoqi.smartpai.service.agent.AgentUserResolver;
 import com.yizhaoqi.smartpai.service.xhs.CookieCipher;
+import com.yizhaoqi.smartpai.service.xhs.PgyRoleProbe;
 import com.yizhaoqi.smartpai.service.xhs.XhsCookieHealthService;
 import com.yizhaoqi.smartpai.service.xhs.XhsCookieService;
 import com.yizhaoqi.smartpai.service.xhs.XhsLoginSessionService;
@@ -45,6 +46,7 @@ public class XhsCookieController {
     private final XhsLoginSessionService loginService;
     private final XhsLoginProperties loginProps;
     private final XhsCookieHealthService healthService;
+    private final PgyRoleProbe pgyRoleProbe;
 
     public XhsCookieController(XhsCookieService service,
                                AgentUserResolver userResolver,
@@ -52,7 +54,8 @@ public class XhsCookieController {
                                CookieCipher cipher,
                                XhsLoginSessionService loginService,
                                XhsLoginProperties loginProps,
-                               XhsCookieHealthService healthService) {
+                               XhsCookieHealthService healthService,
+                               PgyRoleProbe pgyRoleProbe) {
         this.service = service;
         this.userResolver = userResolver;
         this.jwtUtils = jwtUtils;
@@ -60,6 +63,7 @@ public class XhsCookieController {
         this.loginService = loginService;
         this.loginProps = loginProps;
         this.healthService = healthService;
+        this.pgyRoleProbe = pgyRoleProbe;
     }
 
     @GetMapping
@@ -154,6 +158,41 @@ public class XhsCookieController {
         data.put("message", r.message());
         data.put("platformSignal", r.platformSignal());
         data.put("checkedAt", r.checkedAt() == null ? null : r.checkedAt().toString());
+        return ok(data);
+    }
+
+    /**
+     * 蒲公英账号资质探测：直接调 {@code pgy.xiaohongshu.com/api/solar/user/info}，
+     * 判断这条 xhs_pgy cookie 背后是品牌主、机构还是 KOL。
+     *
+     * <p>Spider_XHS 的 PuGongYingAPI 只对品牌主 / 机构有效。本端点用于让运维在 UI 上
+     * 一眼看到"这个号究竟能不能用蒲公英接口"，避免 agent 反复吃 cookie。
+     */
+    @PostMapping("/{id}/pgy-whoami")
+    public ResponseEntity<Object> pgyWhoami(@RequestHeader("Authorization") String auth,
+                                             @PathVariable Long id) {
+        User u = resolveUser(auth);
+        var row = service.findById(id, u.getPrimaryOrg()).orElse(null);
+        if (row == null) return notFound();
+        if (!"xhs_pgy".equals(row.getPlatform())) {
+            return bad("该端点仅支持 platform=xhs_pgy 的 cookie");
+        }
+        String cookieHeader = service.decryptFor(id, u.getPrimaryOrg()).orElse(null);
+        if (cookieHeader == null) return notFound();
+        PgyRoleProbe.Result r = pgyRoleProbe.probe(cookieHeader);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("cookieId", id);
+        data.put("role", r.role());
+        data.put("brandQualified", r.brandQualified());
+        data.put("reachable", r.reachable());
+        data.put("userId", r.userId());
+        data.put("nickName", r.nickName());
+        data.put("httpStatus", r.httpStatus());
+        data.put("apiCode", r.apiCode());
+        data.put("apiMsg", r.apiMsg());
+        data.put("latencyMs", r.latencyMs());
+        data.put("reason", r.reason());
+        data.put("bodyHead", r.bodyHead());
         return ok(data);
     }
 

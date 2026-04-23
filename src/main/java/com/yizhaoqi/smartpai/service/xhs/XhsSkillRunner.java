@@ -146,22 +146,40 @@ public class XhsSkillRunner {
         } else {
             String reason = payload != null && payload.has("error") ? payload.get("error").asText("unknown")
                     : ("bash exit=" + res.exitCode() + " stderr=" + truncate(res.stderr(), 160));
-            // 凭证/反爬硬信号扫描：扫 payload.error/errorType + stderr + stdout
-            String scanText = String.join(" ",
-                    reason == null ? "" : reason,
-                    errorType == null ? "" : errorType,
-                    res.stderr() == null ? "" : res.stderr(),
-                    res.stdout() == null ? "" : truncate(res.stdout(), 1024));
-            AntiBotHit hit = detectAntiBot(scanText);
-            if (hit != null) {
-                cookieService.markDead(picked.cookieId(),
-                        "xhs signal: " + hit.signal + " (from " + req.skillName + ")",
-                        hit.targetStatus);
-                if (errorType == null) errorType = hit.errorType;
-                log.warn("Cookie #{} 命中反爬信号 '{}' → {} （skill={}）",
-                        picked.cookieId(), hit.signal, hit.targetStatus, req.skillName);
+
+            // 脚本已经自我归类为"cookie 没问题、挂在别的原因"的场景 → 不再走反爬扫描，
+            // 避免 error 文案里偶然出现 "cookie"/"登录" 等字样被关键词误伤冤杀 cookie。
+            // 举例：pgy_kol_detail.py 在 cookie_alive=true 时返 "signature_failed"，
+            // 文案里含 "cookie 是活的"，扫了容易擦枪走火。
+            if (isScriptClassifiedNonCookieFault(errorType)) {
+                cookieService.reportFailure(picked.cookieId(),
+                        "skill non-cookie fault: " + errorType + " (" + truncate(reason, 120) + ")");
+                log.debug("Skill {} 返回非 cookie 故障 errorType={}，跳过反爬扫描，软失败 cookie=#{}",
+                        req.skillName, errorType, picked.cookieId());
             } else {
-                cookieService.reportFailure(picked.cookieId(), reason);
+                // 凭证/反爬硬信号扫描：扫 payload.error + stderr + stdout。
+                // 注意不再把 errorType 本身扫进去——errorType 是脚本分类结果，
+                // 若真的是 cookie_invalid，脚本该直接走自己的 cookie_invalid 分支，不靠关键词回扫二次确认。
+                String scanText = String.join(" ",
+                        reason == null ? "" : reason,
+                        res.stderr() == null ? "" : res.stderr(),
+                        res.stdout() == null ? "" : truncate(res.stdout(), 1024));
+                AntiBotHit hit = detectAntiBot(scanText);
+                // errorType 本身若明确是 cookie_invalid / login_required，也视为硬信号
+                boolean structuralCookieBad = "cookie_invalid".equals(errorType)
+                        || "login_required".equals(errorType);
+                if (hit != null || structuralCookieBad) {
+                    String signal = hit != null ? hit.signal : errorType;
+                    XhsCookie.Status targetStatus = hit != null ? hit.targetStatus : XhsCookie.Status.EXPIRED;
+                    cookieService.markDead(picked.cookieId(),
+                            "xhs signal: " + signal + " (from " + req.skillName + ")",
+                            targetStatus);
+                    if (errorType == null && hit != null) errorType = hit.errorType;
+                    log.warn("Cookie #{} 命中反爬/凭证信号 '{}' → {} （skill={}）",
+                            picked.cookieId(), signal, targetStatus, req.skillName);
+                } else {
+                    cookieService.reportFailure(picked.cookieId(), reason);
+                }
             }
         }
 
@@ -184,6 +202,39 @@ public class XhsSkillRunner {
         }
         return new RunResult(true, payload, picked.cookieId(), null, null,
                 sandboxWork.toString(), res);
+    }
+
+    /**
+     * 脚本自我分类出的"cookie 是好的、挂在别的原因"的 errorType 白名单。
+     * 命中这些就不跑反爬关键词扫描，避免人类文案里的"cookie"/"登录"字样被误伤。
+     *
+     * <p>白名单里的都是"要给用户看、但不要废 cookie"的错误——签名失效、
+     * 接口被改 / 被拦、账号权限不够、Spider_XHS import 失败、上游返非 JSON、
+     * 解析错误、无搜索结果等。
+     */
+    private static boolean isScriptClassifiedNonCookieFault(String errorType) {
+        if (errorType == null) return false;
+        return switch (errorType) {
+            case "signature_failed",
+                 "blocked_or_api_changed",
+                 "api_changed",
+                 "insufficient_permission",
+                 "not_brand_account",
+                 "remote_non_json",
+                 "parse_error",
+                 "bootstrap",
+                 "bad_input",
+                 "ffmpeg_missing",
+                 "yt_dlp_missing",
+                 "yt_dlp_failed",
+                 "url_invalid",
+                 "not_found",
+                 "no_result",
+                 "quota_exceeded",
+                 "rate_limit",
+                 "network" -> true;
+            default -> false;
+        };
     }
 
     // ---------- 反爬信号归因 ----------

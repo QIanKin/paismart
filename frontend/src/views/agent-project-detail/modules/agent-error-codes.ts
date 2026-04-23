@@ -72,6 +72,14 @@ export const AGENT_ERROR_CODES: Record<string, ErrorCodeHelp> = {
   },
   internal: {
     label: '内部错误'
+  },
+  not_brand_account: {
+    label: '需品牌主账号',
+    action: { text: '去数据源换账号', to: '/data-sources' }
+  },
+  pgy_unreachable: {
+    label: '蒲公英不可达',
+    action: { text: '重新扫码登录', to: '/data-sources' }
   }
 };
 

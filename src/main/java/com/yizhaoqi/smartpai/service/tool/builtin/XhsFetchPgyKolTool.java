@@ -7,8 +7,11 @@ import com.yizhaoqi.smartpai.repository.creator.CreatorAccountRepository;
 import com.yizhaoqi.smartpai.service.creator.CreatorService;
 import com.yizhaoqi.smartpai.service.tool.Tool;
 import com.yizhaoqi.smartpai.service.tool.ToolContext;
+import com.yizhaoqi.smartpai.service.tool.ToolErrors;
 import com.yizhaoqi.smartpai.service.tool.ToolInputSchemas;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
+import com.yizhaoqi.smartpai.service.xhs.PgyRoleProbe;
+import com.yizhaoqi.smartpai.service.xhs.XhsCookieService;
 import com.yizhaoqi.smartpai.service.xhs.XhsSkillRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,14 +37,20 @@ public class XhsFetchPgyKolTool implements Tool {
     private final XhsSkillRunner runner;
     private final CreatorService creatorService;
     private final CreatorAccountRepository accountRepo;
+    private final PgyRoleProbe roleProbe;
+    private final XhsCookieService cookieService;
     private final JsonNode schema;
 
     public XhsFetchPgyKolTool(XhsSkillRunner runner,
                               CreatorService creatorService,
-                              CreatorAccountRepository accountRepo) {
+                              CreatorAccountRepository accountRepo,
+                              PgyRoleProbe roleProbe,
+                              XhsCookieService cookieService) {
         this.runner = runner;
         this.creatorService = creatorService;
         this.accountRepo = accountRepo;
+        this.roleProbe = roleProbe;
+        this.cookieService = cookieService;
         this.schema = ToolInputSchemas.object()
                 .stringProp("keyword", "关键词（可选，如 '美妆'）", false)
                 .integerProp("page", "页码，默认 1", false)
@@ -71,6 +80,46 @@ public class XhsFetchPgyKolTool implements Tool {
         boolean dryRun = input.path("dryRun").asBoolean(true);
         int pageSize = Math.max(1, Math.min(input.path("pageSize").asInt(20), 50));
         int page = Math.max(1, input.path("page").asInt(1));
+
+        // 预检：蒲公英 PuGongYingAPI 只对品牌主/机构账号有效。
+        // 提前探测一次 user/info，避免用 KOL 号去跑 Python skill 导致 cookie 被连坑。
+        var picked = cookieService.pickAvailable(orgTag, "xhs_pgy");
+        if (picked.isEmpty()) {
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("errorType", "no_cookie");
+            return ToolResult.error(ToolErrors.NO_TARGET,
+                    "当前 org 下没有 ACTIVE 的 xhs_pgy cookie。请到'数据源 → 小蜜蜂 XHS Cookie'扫码/录入一个"
+                            + "已开通'蒲公英品牌主/机构'资质的账号。", extra);
+        }
+        PgyRoleProbe.Result probe = roleProbe.probe(picked.get().cookie());
+        if (!probe.reachable()) {
+            cookieService.reportFailure(picked.get().cookieId(),
+                    "pgy preflight unreachable: " + probe.reason());
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("errorType", "pgy_unreachable");
+            extra.put("role", probe.role());
+            extra.put("httpStatus", probe.httpStatus());
+            extra.put("apiMsg", probe.apiMsg());
+            return ToolResult.error("pgy_unreachable",
+                    "蒲公英预检失败：" + probe.reason()
+                            + "（cookie 可能已过期或被风控，建议重新扫码登录品牌主账号）。",
+                    extra);
+        }
+        if (!probe.brandQualified()) {
+            cookieService.reportSuccess(picked.get().cookieId()); // cookie 本身是活的，不要冤杀
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("errorType", "not_brand_account");
+            extra.put("role", probe.role());
+            extra.put("nickName", probe.nickName());
+            extra.put("userId", probe.userId());
+            return ToolResult.error("not_brand_account",
+                    "当前 xhs_pgy cookie 登录的账号 [" + probe.nickName() + "] 角色是 "
+                            + probe.role() + "（非品牌主/机构）。Spider_XHS 的蒲公英接口"
+                            + "只对已在蒲公英后台开通'品牌主/机构'资质的账号有效。"
+                            + "请换一个已开通品牌主资质的账号扫码/录入；KOL 号永远拉不到。",
+                    extra);
+        }
+        cookieService.reportSuccess(picked.get().cookieId());
 
         XhsSkillRunner.RunRequest req = new XhsSkillRunner.RunRequest();
         req.orgTag = orgTag;
