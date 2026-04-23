@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""xhs-pgy-kol-detail：拉单个蒲公英博主的 summary + 粉丝画像 + 历史趋势。"""
+"""xhs-pgy-kol-detail：拉单个蒲公英博主的 summary + 粉丝画像 + 历史趋势。
+
+诊断策略：
+1. 先 get_self_info 作"活体检测" —— 通 → cookie 一定是活的；
+2. 然后逐个调 4 个详情接口，每次都记录 HTTP status + body 片段；
+3. 只有当 self_info 也挂了（真 401 / 登录页 / 403）才判 cookie_invalid，
+   否则归类到 signature_failed / blocked / api_changed，不污染 cookie 状态。
+"""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +15,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
+from typing import Any
 
 
 def _bootstrap() -> None:
@@ -40,7 +48,6 @@ def _float(v):
 
 
 def _price_note(price_info) -> str | None:
-    """把蒲公英 priceInfoList 转成人类可读的 '图文: 800 / 视频: 1500'。"""
     if not price_info:
         return None
     try:
@@ -61,7 +68,6 @@ def _price_note(price_info) -> str | None:
 
 
 def _snapshot(summary: dict, notes_rate: dict) -> dict:
-    """从 dataSummary 和 notesRate 里抠出几个关键指标当 snapshot。含报价。"""
     data = (summary or {}).get("data") or {}
     nr = (notes_rate or {}).get("data") or {}
     price_info = data.get("priceInfoList") or data.get("price") or data.get("priceInfo")
@@ -77,6 +83,40 @@ def _snapshot(summary: dict, notes_rate: dict) -> dict:
         "priceNote": _price_note(price_info),
         "priceInfoList": price_info,
     }
+
+
+def _call(api_obj, method_name: str, *a) -> tuple[Any, str | None]:
+    """统一调 PuGongYingAPI 的某方法，返回 (data, error_detail)。
+
+    error_detail 非 None 时表示调用失败；SDK 里的 .json() 解析异常都会被这里收集。
+    """
+    try:
+        return api_obj.__getattribute__(method_name)(*a), None
+    except json.JSONDecodeError as e:
+        return None, f"json_parse: {e}"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
+def _classify_self_info(info: Any) -> str | None:
+    """判断 get_self_info 返回的结果是否说明 cookie 真失效。
+
+    返回值：None=cookie 活着；字符串=cookie 失效原因。
+    """
+    if info is None:
+        return "self_info_none"
+    if not isinstance(info, dict):
+        return f"self_info_type:{type(info).__name__}"
+    code = info.get("code") or info.get("result")
+    msg = str(info.get("msg") or info.get("message") or "")
+    data = info.get("data") or {}
+    if isinstance(data, dict) and (data.get("userId") or data.get("user_id")):
+        return None
+    if code in (401, 403, "401", "403", "NEED_LOGIN", "UNAUTHORIZED", "NOT_LOGIN"):
+        return f"self_info_auth_denied code={code} msg={msg}"
+    if "login" in msg.lower() or "登录" in msg:
+        return f"self_info_needs_login msg={msg}"
+    return f"self_info_no_user code={code} msg={msg}"
 
 
 def run(args: argparse.Namespace) -> int:
@@ -106,33 +146,61 @@ def run(args: argparse.Namespace) -> int:
         return 2
 
     api = PuGongYingAPI()
-    errors: dict[str, str] = {}
-    summary = {}
-    fans_portrait = {}
-    fans_history = {}
-    notes_rate = {}
-    try:
-        summary = api.get_user_detail(args.user_id, cookies) or {}
-    except Exception as e:
-        errors["summary"] = str(e)
-    try:
-        fans_portrait = api.get_user_fans_detail(args.user_id, cookies) or {}
-    except Exception as e:
-        errors["fansPortrait"] = str(e)
-    try:
-        fans_history = api.get_user_fans_history(args.user_id, cookies) or {}
-    except Exception as e:
-        errors["fansHistory"] = str(e)
-    try:
-        notes_rate = api.get_user_notes_detail(args.user_id, cookies) or {}
-    except Exception as e:
-        errors["notesRate"] = str(e)
 
-    if not summary and errors:
-        _write(out_path, {"ok": False, "error": "蒲公英所有接口都失败",
-                           "errorType": "cookie_invalid", "partialErrors": errors})
+    # --- 1) 活体检测：get_self_info 只用普通 cookie，不走 x-s 签名 ---
+    self_info, self_err = _call(api, "get_self_info", cookies)
+    cookie_diag = _classify_self_info(self_info) if self_err is None else f"self_info_call: {self_err}"
+    cookie_alive = cookie_diag is None
+
+    # --- 2) 跑 4 个详情接口，收集每个的报错（这些走 x-s 签名，容易挂在 JS 引擎/签名） ---
+    errors: dict[str, str] = {}
+    summary, fans_portrait, fans_history, notes_rate = {}, {}, {}, {}
+
+    summary, e = _call(api, "get_user_detail", args.user_id, cookies)
+    if e: errors["summary"] = e
+    summary = summary or {}
+
+    fans_portrait, e = _call(api, "get_user_fans_detail", args.user_id, cookies)
+    if e: errors["fansPortrait"] = e
+    fans_portrait = fans_portrait or {}
+
+    fans_history, e = _call(api, "get_user_fans_history", args.user_id, cookies)
+    if e: errors["fansHistory"] = e
+    fans_history = fans_history or {}
+
+    notes_rate, e = _call(api, "get_user_notes_detail", args.user_id, cookies)
+    if e: errors["notesRate"] = e
+    notes_rate = notes_rate or {}
+
+    all_detail_failed = (not summary) and (not fans_portrait) and (not fans_history) and (not notes_rate)
+
+    if all_detail_failed:
+        # 全挂了 —— 根据 cookie_alive 做正确分类，避免冤杀 cookie
+        if cookie_alive:
+            # cookie 是活的，说明挂在签名/反爬/接口变更上，跟 cookie 无关
+            reason_hint = None
+            for msg in errors.values():
+                if "json_parse" in msg:
+                    reason_hint = "blocked_or_api_changed"
+                    break
+            error_type = reason_hint or "signature_failed"
+            friendly = "蒲公英详情接口全部失败，但 cookie 是活的（get_self_info 通过）。" \
+                       "最可能：x-s 签名 JS 过期 / 接口路径变更 / 被风控临时拦截。"
+        else:
+            error_type = "cookie_invalid"
+            friendly = f"蒲公英所有接口都失败，且 cookie 活体检测失败：{cookie_diag}"
+        _write(out_path, {
+            "ok": False,
+            "error": friendly,
+            "errorType": error_type,
+            "cookieAlive": cookie_alive,
+            "cookieDiag": cookie_diag,
+            "partialErrors": errors,
+            "selfInfo": self_info if isinstance(self_info, (dict, list)) else None,
+        })
         return 4
 
+    # --- 3) 至少一个成功：走成功路径 ---
     payload = {
         "ok": True,
         "userId": args.user_id,
@@ -141,6 +209,7 @@ def run(args: argparse.Namespace) -> int:
         "fansHistory": fans_history,
         "notesRate": notes_rate,
         "snapshot": _snapshot(summary, notes_rate),
+        "cookieAlive": cookie_alive,
     }
     if errors:
         payload["partialErrors"] = errors

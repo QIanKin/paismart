@@ -213,6 +213,11 @@ services:
       XHS_SPOTLIGHT_APP_ID: ${XHS_SPOTLIGHT_APP_ID:-}
       XHS_SPOTLIGHT_APP_SECRET: ${XHS_SPOTLIGHT_APP_SECRET:-}
 
+      # 业务员本机 Chrome CDP 桥接（千瓜 / XHS 浏览器自动化）
+      # 9223 是 acceptance/start-qiangua-chrome.bat 启动的 Node 代理端口
+      # （Chrome 147+ 拒绝非 localhost 源直连 9222，必须经代理改写 Host 头）
+      SMARTPAI_BROWSER_CDP_ENDPOINT: ${SMARTPAI_BROWSER_CDP_ENDPOINT:-http://host.docker.internal:9223}
+
       # Skill 子系统
       SKILLS_ENABLED: ${SKILLS_ENABLED:-true}
       SKILLS_ROOT_USER: /app/skills
@@ -282,6 +287,14 @@ services:
       - ./skills:/app/skills
       # agent sandbox 工作区（BashExecutor 每个 session 会在这里建独立子目录）
       - agent-sandbox:/app/var/agent-sandbox
+    # 显式绕过业务员本机 VPN/Clash 的 fake-IP DNS（198.18.0.0/16）：
+    # 本地 Clash 会把 *.xiaohongshu.com 劫持到 198.18.x.x 只给宿主进程走代理；
+    # Docker 容器不经过这一层，结果容器拿到 fake-IP 但 TCP/TLS 连不上 → 所有
+    # 聚光 / 蒲公英 / 小红书 API 全挂。固定公网 DNS 就能让容器拿到真实 IP。
+    dns:
+      - 119.29.29.29   # 腾讯 DNSPod，国内快、不被 GFW 干扰
+      - 223.5.5.5      # 阿里 AliDNS
+      - 8.8.8.8        # Google DNS 兜底
     healthcheck:
       # 后端没启用 actuator，用 TCP 端口探测更可靠
       test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/8081' || exit 1"]

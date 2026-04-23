@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.yizhaoqi.smartpai.service.tool.builtin.XhsCookieUpdateToolTest
--------------------------------------------------------------------------------
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s -- in com.yizhaoqi.smartpai.service.tool.builtin.XhsCookieUpdateToolTest

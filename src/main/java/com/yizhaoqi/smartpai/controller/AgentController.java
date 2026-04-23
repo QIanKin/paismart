@@ -43,18 +43,36 @@ public class AgentController {
     @GetMapping("/tools")
     public ResponseEntity<?> listTools() {
         ArrayNode arr = mapper.createArrayNode();
+        JsonNode empty = mapper.createObjectNode();
         for (Tool t : toolRegistry.all()) {
             ObjectNode node = mapper.createObjectNode();
             node.put("name", t.name());
             node.put("description", t.description());
-            node.put("userFacingName", t.userFacingName(null));
-            node.put("readOnly", t.isReadOnly(null));
-            node.put("destructive", t.isDestructive(null));
-            node.put("concurrencySafe", t.isConcurrencySafe(null));
+            node.put("userFacingName", safeUserFacingName(t, empty));
+            node.put("readOnly", safeReadOnly(t, empty));
+            node.put("destructive", safeDestructive(t, empty));
+            node.put("concurrencySafe", safeConcurrencySafe(t, empty));
             node.set("inputSchema", t.inputSchema());
             arr.add(node);
         }
         return ResponseEntity.ok(Map.of("code", 200, "message", "ok", "data", arr));
+    }
+
+    // 目录/清单端点只是元数据展示，没有真实 input，
+    // 有些工具内部会看 input 做动态判定（例如 bash cmd 判危险）；
+    // 这里要兜底：传空 JSON，工具方法里只要是 path()/hasNonNull() 就安全；
+    // 万一某个工具仍然抛异常，按"保守默认"返回（非只读、非破坏、非并发安全）。
+    private static String safeUserFacingName(Tool t, JsonNode empty) {
+        try { return t.userFacingName(empty); } catch (Exception e) { return t.name(); }
+    }
+    private static boolean safeReadOnly(Tool t, JsonNode empty) {
+        try { return t.isReadOnly(empty); } catch (Exception e) { return false; }
+    }
+    private static boolean safeDestructive(Tool t, JsonNode empty) {
+        try { return t.isDestructive(empty); } catch (Exception e) { return false; }
+    }
+    private static boolean safeConcurrencySafe(Tool t, JsonNode empty) {
+        try { return t.isConcurrencySafe(empty); } catch (Exception e) { return false; }
     }
 
     /**
@@ -111,6 +129,7 @@ public class AgentController {
         otherGroup.putArray("tools");
 
         int total = 0;
+        JsonNode empty = mapper.createObjectNode();
         for (Tool t : toolRegistry.all()) {
             total++;
             String matched = null;
@@ -125,10 +144,10 @@ public class AgentController {
             }
             ObjectNode entry = mapper.createObjectNode();
             entry.put("name", t.name());
-            entry.put("userFacingName", t.userFacingName(null));
+            entry.put("userFacingName", safeUserFacingName(t, empty));
             entry.put("description", t.description());
-            entry.put("readOnly", t.isReadOnly(null));
-            entry.put("destructive", t.isDestructive(null));
+            entry.put("readOnly", safeReadOnly(t, empty));
+            entry.put("destructive", safeDestructive(t, empty));
             ObjectNode target = matched == null ? otherGroup : groupNodes.get(matched);
             ((ArrayNode) target.get("tools")).add(entry);
             if (matched != null) groupCounts.merge(matched, 1, Integer::sum);

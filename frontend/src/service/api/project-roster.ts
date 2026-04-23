@@ -34,7 +34,7 @@ export function fetchProjectRosterAddBatch(
   stage: Api.Project.RosterStage = 'SHORTLISTED'
 ) {
   return request<Api.Project.RosterEntry[]>({
-    url: `/agent/projects/${projectId}/creators:batch`,
+    url: `/agent/projects/${projectId}/creators/batch`,
     method: 'post',
     data: { ...ids, stage }
   });

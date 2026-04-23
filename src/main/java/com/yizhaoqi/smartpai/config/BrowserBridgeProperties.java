@@ -24,8 +24,17 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "smartpai.browser")
 public class BrowserBridgeProperties {
 
-    /** 业务员 Chrome 的 CDP endpoint，默认假设容器能通过 host.docker.internal 访问宿主机 */
-    private String cdpEndpoint = "http://host.docker.internal:9222";
+    /**
+     * 业务员 Chrome 的 CDP endpoint。
+     *
+     * <p>默认走 9223：这是 {@code acceptance/start-qiangua-chrome.bat} 启动的
+     * Node CDP 代理端口。直连 Chrome 9222 会被 Chrome 147+ 以"非 localhost 源"
+     * 为由拒绝（Empty reply from server），所以必须经过代理改写 Host 头。
+     *
+     * <p>如果业务员本机没有 Docker（后端直接跑在宿主机 JVM 里），把这个值改成
+     * {@code http://127.0.0.1:9222} 即可。
+     */
+    private String cdpEndpoint = "http://host.docker.internal:9223";
 
     /**
      * NODE_PATH，预装 playwright 的 node_modules 目录。

@@ -68,8 +68,19 @@ public class ProjectCreatorController {
         return ok(entry);
     }
 
-    /** 批量加：一次把搜索框里勾选的 N 个博主塞进 roster。支持 {@code creatorIds}（人 id） 或 {@code accountIds}（账号 id）。 */
-    @PostMapping(":batch")
+    /**
+     * 批量加：一次把搜索框里勾选的 N 个博主塞进 roster。
+     * 支持 {@code creatorIds}（人 id） 或 {@code accountIds}（账号 id）。
+     *
+     * <p>路径提供两种写法，前端/Agent 按自己习惯挑：
+     * <ul>
+     *   <li><code>POST /api/v1/agent/projects/{pid}/creators/batch</code>（推荐，保险）</li>
+     *   <li><code>POST /api/v1/agent/projects/{pid}/creators:batch</code>（Google API 风格，历史兼容）</li>
+     * </ul>
+     * 之前只挂 <code>:batch</code>，在 Spring 6 的 PathPatternParser 下偶发会 404（颜色段匹配歧义）。
+     * 同时挂两条路径，彻底避坑。
+     */
+    @PostMapping(value = {"/batch", ":batch"})
     @SuppressWarnings("unchecked")
     public ResponseEntity<?> addBatch(@RequestHeader("Authorization") String auth,
                                       @PathVariable Long projectId,
