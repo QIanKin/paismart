@@ -32,7 +32,7 @@ public class CreatorSearchTool implements Tool {
         this.creatorService = creatorService;
         this.schema = ToolInputSchemas.object()
                 .stringProp("platform", "平台：xhs / douyin / bilibili / weibo / wechat_mp 等", false)
-                .stringProp("keyword", "在 displayName/handle/bio 里模糊匹配", false)
+                .stringProp("keyword", "在 displayName/handle/bio/platformUserId/homepageUrl/自定义字段 里模糊匹配", false)
                 .stringProp("categoryMain", "平台主分类精确匹配", false)
                 .integerProp("followersMin", "粉丝下限", false)
                 .integerProp("followersMax", "粉丝上限", false)
@@ -49,7 +49,7 @@ public class CreatorSearchTool implements Tool {
     @Override public String name() { return "creator_search"; }
     @Override public String description() {
         return "在博主数据库里按条件分页检索账号。支持粉丝区间、分类、关键词、标签等过滤。"
-                + "返回账号核心指标（粉丝/均赞/爆款率）+ 分页元信息。用于快速挑选候选博主。";
+                + "返回账号核心指标（粉丝/均赞/爆款率）以及平台 UID、主页、自定义字段摘要。用于先查库再决定是否外部补库。";
     }
     @Override public JsonNode inputSchema() { return schema; }
     @Override public boolean isReadOnly(JsonNode input) { return true; }
@@ -93,6 +93,7 @@ public class CreatorSearchTool implements Tool {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", a.getId());
         m.put("platform", a.getPlatform());
+        m.put("platformUserId", a.getPlatformUserId());
         m.put("handle", a.getHandle());
         m.put("displayName", a.getDisplayName());
         m.put("followers", a.getFollowers());
@@ -102,6 +103,8 @@ public class CreatorSearchTool implements Tool {
         m.put("categoryMain", a.getCategoryMain());
         m.put("verified", a.getVerified());
         m.put("creatorId", a.getCreatorId());
+        m.put("homepageUrl", a.getHomepageUrl());
+        m.put("customFieldsJson", a.getCustomFieldsJson());
         m.put("latestSnapshotAt", a.getLatestSnapshotAt() == null ? null : a.getLatestSnapshotAt().toString());
         return m;
     }

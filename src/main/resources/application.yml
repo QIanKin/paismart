@@ -169,12 +169,21 @@ log4j:
       apache:
         tika: DEBUG
 
+# 主 LLM provider 配置（OpenAI Chat Completions 兼容协议）。
+# 支持任何兼容厂商：DeepSeek、SiliconFlow、Qwen DashScope、智谱 GLM、Moonshot、本地 vLLM 代理…
+# 推荐用 LLM_API_* 这组变量配置；为兼容旧部署，DEEPSEEK_API_* 仍然作为 fallback 生效。
+llm:
+  api:
+    url: ${LLM_API_URL:${DEEPSEEK_API_URL:https://api.deepseek.com/v1}}
+    model: ${LLM_API_MODEL:${DEEPSEEK_API_MODEL:deepseek-chat}}
+    key: ${LLM_API_KEY:${DEEPSEEK_API_KEY:}}
+
+# 旧 key 保留为别名，方便老 .env 平滑过渡；不再建议直接使用。
 deepseek:
   api:
-    # LLM 提供方配置
-    url: ${DEEPSEEK_API_URL:https://api.deepseek.com/v1}
-    model: ${DEEPSEEK_API_MODEL:deepseek-chat}
-    key: ${DEEPSEEK_API_KEY:}
+    url: ${DEEPSEEK_API_URL:${LLM_API_URL:https://api.deepseek.com/v1}}
+    model: ${DEEPSEEK_API_MODEL:${LLM_API_MODEL:deepseek-chat}}
+    key: ${DEEPSEEK_API_KEY:${LLM_API_KEY:}}
 
 embedding:
   api:
@@ -201,11 +210,36 @@ ai:
     temperature: ${AI_GENERATION_TEMPERATURE:0.3}
     max-tokens: ${AI_GENERATION_MAX_TOKENS:2000}
     top-p: ${AI_GENERATION_TOP_P:0.9}
+  tokenizer:
+    # jtokkit encoding：cl100k_base（GPT-4/3.5/DeepSeek/SiliconFlow 主流），o200k_base（GPT-4o），p50k_base 等
+    # 切换时只需改环境变量 AI_TOKENIZER_ENCODING，运行时不需要其它操作
+    encoding: ${AI_TOKENIZER_ENCODING:cl100k_base}
+  vision:
+    # 视觉/视频拆解专用模型 id：与主 LLM 走同一个 base_url + api_key，只是 model 字段不同。
+    # 留空则复用主 LLM model（要求该 model 本身支持 vision）。
+    # 例：阿里 Qwen-VL: qwen-vl-plus；OpenAI GPT-4o: gpt-4o-mini；智谱: glm-4v-plus
+    model: ${AI_VISION_MODEL:}
+    enabled: ${AI_VISION_ENABLED:true}
+    frame-count: ${AI_VISION_FRAME_COUNT:6}
+    # 单张帧最长边压缩到该像素，控制网络上行 / token 成本
+    frame-max-edge: ${AI_VISION_FRAME_MAX_EDGE:768}
   agent:
     max-steps: ${AGENT_MAX_STEPS:12}
     turn-timeout-ms: ${AGENT_TURN_TIMEOUT_MS:600000}
     enabled-tools: []  # 空=全部可用；生产可收窄，如 [knowledge_search, web_fetch, bash, use_skill]
     behavior-contract: ""  # 可选：追加企业专属行为契约文字
+    # ==== 上下文与 token 预算 ====
+    # 模型 context window 总大小（token）。prompt 侧实际可用 = 此值 - generation.max-tokens - 1000(reserve)。
+    # 接 32k/64k 模型时按需调小；接 200k+ 模型可调大。
+    context-window-tokens: ${AGENT_CONTEXT_WINDOW_TOKENS:128000}
+    # 轮内 auto-compact 触发阈值。一旦 prompt 已用 / 总预算 >= 此值，本轮会同步触发 MemoryCompactor。
+    # 不要低于 0.85（会带来无谓压缩延迟），不要高于 0.97（会逼近模型硬上限）。
+    in-turn-compact-usage-ratio: ${AGENT_IN_TURN_COMPACT_RATIO:0.92}
+    # 单条 tool 消息给 LLM 的 token 上限。超过则截断；DB 仍存全量。防止大 JSON 工具响应一次打满上下文。
+    tool-payload-max-tokens: ${AGENT_TOOL_PAYLOAD_MAX_TOKENS:4000}
+
+agent:
+  inline-image-data-url-for-model: ${AGENT_INLINE_IMAGE_DATA_URL_FOR_MODEL:true}
 
 # Skill 子系统
 skills:
@@ -222,13 +256,47 @@ skills:
 # 小蜜蜂 · XHS & 浏览器自动化
 smartpai:
   browser:
-    # 业务员本机已登录的 Chrome CDP 地址（撤回评论 / 千瓜发现等浏览器 skill 通过它连上真实登录态）
-    # 开发：宿主机跑 chrome --remote-debugging-port=9222，容器通过 host.docker.internal 回连
-    # 生产：业务员跑 cpolar/frp tcp 9222 拿公网地址填入
+    # 浏览器能力主开关：
+    # - managed：生产推荐。服务器自己启动 Playwright Chromium，登录态保存在 profile-root。
+    # - external：调试/兼容。连接外部 Chrome、Browserless、OpenCLI CDP endpoint。
+    mode: ${SMARTPAI_BROWSER_MODE:managed}
     cdp-endpoint: ${SMARTPAI_BROWSER_CDP_ENDPOINT:http://host.docker.internal:9222}
+    profile-root: ${SMARTPAI_BROWSER_PROFILE_ROOT:./var/browser-profiles}
+    headless: ${SMARTPAI_BROWSER_HEADLESS:true}
+    no-sandbox: ${SMARTPAI_BROWSER_NO_SANDBOX:true}
+    executable-path: ${SMARTPAI_BROWSER_EXECUTABLE_PATH:}
     node-modules-path: ${SMARTPAI_BROWSER_NODE_MODULES:/app/skills-bundled/_shared/playwright-runtime/node_modules}
     default-timeout-seconds: ${SMARTPAI_BROWSER_TIMEOUT:600}
   xhs:
+    # 第三方小红书数据/下载 provider。用于替代 cookie 直连抓取：
+    # - xhs_third_party_note_detail：获取笔记详情/媒体地址/互动数据
+    # - xhs_third_party_media_download：下载视频/图片素材
+    # provider=tikhub 时优先走下面的 smartpai.xhs.tikhub.* 配置（推荐生产）。
+    third-party:
+      enabled: ${XHS_THIRD_PARTY_ENABLED:false}
+      provider: ${XHS_THIRD_PARTY_PROVIDER:tikhub}
+      base-url: ${XHS_THIRD_PARTY_BASE_URL:}
+      api-key: ${XHS_THIRD_PARTY_API_KEY:}
+      api-key-header: ${XHS_THIRD_PARTY_API_KEY_HEADER:X-API-Key}
+      timeout-seconds: ${XHS_THIRD_PARTY_TIMEOUT_SECONDS:30}
+      note-detail-path: ${XHS_THIRD_PARTY_NOTE_DETAIL_PATH:/api/v1/crawler/note}
+      media-download-path: ${XHS_THIRD_PARTY_MEDIA_DOWNLOAD_PATH:/api/v1/crawler/note/media}
+    # TikHub.io 专用 provider 配置。给 xhs_third_party_* 工具与 xhs_video_analyze 工具使用。
+    # 鉴权头自动 "Authorization: Bearer ${apiKey}"；不需要写 Bearer 前缀。
+    tikhub:
+      enabled: ${XHS_TIKHUB_ENABLED:false}
+      base-url: ${XHS_TIKHUB_BASE_URL:https://api.tikhub.io}
+      api-key: ${XHS_TIKHUB_API_KEY:}
+      timeout-seconds: ${XHS_TIKHUB_TIMEOUT_SECONDS:30}
+      default-quality: ${XHS_TIKHUB_DEFAULT_QUALITY:best}
+      download-timeout-seconds: ${XHS_TIKHUB_DOWNLOAD_TIMEOUT_SECONDS:300}
+      max-video-bytes: ${XHS_TIKHUB_MAX_VIDEO_BYTES:209715200}
+      extract-share-path: ${XHS_TIKHUB_EXTRACT_SHARE_PATH:/api/v1/xiaohongshu/app/extract_share_info}
+      fetch-note-detail-path: ${XHS_TIKHUB_FETCH_NOTE_DETAIL_PATH:/api/v1/xiaohongshu/web_v3/fetch_note_detail}
+      fetch-search-users-path: ${XHS_TIKHUB_FETCH_SEARCH_USERS_PATH:/api/v1/xiaohongshu/web_v3/fetch_search_users}
+      fetch-user-info-path: ${XHS_TIKHUB_FETCH_USER_INFO_PATH:/api/v1/xiaohongshu/web_v3/fetch_user_info}
+      fetch-user-notes-path: ${XHS_TIKHUB_FETCH_USER_NOTES_PATH:/api/v1/xiaohongshu/web_v3/fetch_user_notes}
+      fetch-search-notes-path: ${XHS_TIKHUB_FETCH_SEARCH_NOTES_PATH:/api/v1/xiaohongshu/web_v3/fetch_search_notes}
     seed:
       # 第一次部署时把 openclaw 备份的 cookies.json 导进公司共享池。
       # 开关开启后只执行一次（按 label 幂等），之后可关闭。
@@ -261,6 +329,44 @@ smartpai:
       app-id: ${XHS_SPOTLIGHT_APP_ID:}
       app-secret: ${XHS_SPOTLIGHT_APP_SECRET:}
       refresh-url: ${XHS_SPOTLIGHT_REFRESH_URL:https://adapi.xiaohongshu.com/api/open/oauth2/refresh_token}
+
+  # ASR (自动语音识别) 服务。视频分析工具会用它把音频转写成文本，再交给 LLM 拆解爆款结构。
+  # ASR 路由：
+  # - whisper-compatible：默认 backend 容器内 local-faster-whisper（python+faster-whisper 子进程），不拉额外 Docker 镜像；
+  # - dashscope-paraformer-v2：阿里百炼，要求 MinIO 公网可达，云端付费。
+  asr:
+    enabled: ${SMARTPAI_ASR_ENABLED:true}
+    provider: ${SMARTPAI_ASR_PROVIDER:whisper-compatible}
+    # 下面这块 DashScope 专用（provider=dashscope-paraformer-v2 时使用）
+    base-url: ${SMARTPAI_ASR_BASE_URL:https://dashscope.aliyuncs.com}
+    model: ${SMARTPAI_ASR_MODEL:paraformer-v2}
+    # 留空则自动 fallback 到 embedding.api.key（同账号 DashScope key）。建议独立配 DASHSCOPE_ASR_API_KEY。
+    api-key: ${DASHSCOPE_ASR_API_KEY:}
+    poll-interval-seconds: ${SMARTPAI_ASR_POLL_INTERVAL:3}
+    max-poll-seconds: ${SMARTPAI_ASR_MAX_POLL_SECONDS:600}
+    http-timeout-seconds: ${SMARTPAI_ASR_HTTP_TIMEOUT:30}
+    punctuation: ${SMARTPAI_ASR_PUNCTUATION:true}
+    itn: ${SMARTPAI_ASR_ITN:true}
+    language-hints: ${SMARTPAI_ASR_LANGUAGES:zh,en}
+    # Whisper 子配置（provider=whisper-compatible 时使用）
+    whisper:
+      # HTTP 外连时用；local-faster-whisper 可留空
+      base-url: ${SMARTPAI_WHISPER_BASE_URL:}
+      # local-faster-whisper（默认，同容器）| asr-webservice | openai-compat
+      mode: ${SMARTPAI_WHISPER_MODE:local-faster-whisper}
+      local-script-path: ${SMARTPAI_WHISPER_SCRIPT:/app/scripts/local_whisper_transcribe.py}
+      path: ${SMARTPAI_WHISPER_PATH:/asr}
+      task: ${SMARTPAI_WHISPER_TASK:transcribe}
+      language: ${SMARTPAI_WHISPER_LANGUAGE:zh}
+      output: ${SMARTPAI_WHISPER_OUTPUT:json}
+      # local：tiny/base/small/...；openai-compat：HF id 或 whisper-1
+      model: ${SMARTPAI_WHISPER_MODEL:base}
+      api-key: ${SMARTPAI_WHISPER_API_KEY:}
+      http-timeout-seconds: ${SMARTPAI_WHISPER_TIMEOUT:600}
+      max-audio-bytes: ${SMARTPAI_WHISPER_MAX_AUDIO_BYTES:209715200}
+
+# 千瓜 API 已下线：博主搜索/笔记搜索统一走 TikHub 公开链路（smartpai.xhs.tikhub.*）。
+# 蒲公英品牌侧（粉丝画像/KOL 列表/报价）继续走 cookie 池，由 SecurityConfig + xhs_pgy 平台管理。
 
 # 微信支付相关配置
 wx:

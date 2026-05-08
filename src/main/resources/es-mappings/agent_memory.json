@@ -1,0 +1,39 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "memoryId": { "type": "long" },
+      "userId":   { "type": "keyword" },
+      "orgTag":   { "type": "keyword" },
+      "sessionId": { "type": "long" },
+      "projectId": { "type": "long" },
+      "source":   { "type": "keyword" },
+      "title": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart",
+        "fields": { "kw": { "type": "keyword", "ignore_above": 256 } }
+      },
+      "fullText": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart"
+      },
+      "fromSeq":  { "type": "integer" },
+      "toSeq":    { "type": "integer" },
+      "tokenEstimate": { "type": "integer" },
+      "createdAt": { "type": "date" },
+      "expiresAt": { "type": "date" },
+      "vector": {
+        "type": "dense_vector",
+        "dims": ${EMBEDDING_DIMENSION},
+        "index": true,
+        "similarity": "cosine"
+      },
+      "modelVersion": { "type": "keyword" }
+    }
+  }
+}

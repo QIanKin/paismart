@@ -20,10 +20,10 @@ declare module "@elegant-router/types" {
     "403": "/403";
     "404": "/404";
     "500": "/500";
+    "agent-capabilities": "/agent-capabilities";
     "agent-project-detail": "/agent-projects/:id";
     "agent-projects": "/agent-projects";
     "chat": "/chat";
-    "chat-history": "/chat-history";
     "creator-hub": "/creator-hub";
     "data-sources": "/data-sources";
     "iframe-page": "/iframe-page/:url";
@@ -71,10 +71,10 @@ declare module "@elegant-router/types" {
     | "403"
     | "404"
     | "500"
+    | "agent-capabilities"
     | "agent-project-detail"
     | "agent-projects"
     | "chat"
-    | "chat-history"
     | "creator-hub"
     | "data-sources"
     | "iframe-page"
@@ -109,9 +109,9 @@ declare module "@elegant-router/types" {
     | "500"
     | "iframe-page"
     | "login"
+    | "agent-capabilities"
     | "agent-project-detail"
     | "agent-projects"
-    | "chat-history"
     | "chat"
     | "creator-hub"
     | "data-sources"

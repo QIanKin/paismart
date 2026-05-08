@@ -1,6 +1,7 @@
 package com.yizhaoqi.smartpai.service.tool.builtin;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.model.creator.Creator;
 import com.yizhaoqi.smartpai.model.creator.CreatorAccount;
 import com.yizhaoqi.smartpai.repository.creator.CreatorRepository;
@@ -42,6 +43,7 @@ import java.util.Map;
 public class XhsPgyKolDetailTool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(XhsPgyKolDetailTool.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final XhsSkillRunner runner;
     private final CreatorService creatorService;
@@ -195,6 +197,7 @@ public class XhsPgyKolDetailTool implements Tool {
         if (persistMetrics && account != null
                 && (followers != null || avgLikes != null || avgComments != null || engagementRate != null)) {
             try {
+                String mergedCustomFields = mergePgyCustomFields(account.getCustomFieldsJson(), payload, snapshot, userId);
                 CreatorService.CreatorAccountUpsertRequest up = new CreatorService.CreatorAccountUpsertRequest(
                         account.getCreatorId(),
                         orgTag,
@@ -219,7 +222,7 @@ public class XhsPgyKolDetailTool implements Tool {
                         account.getCategoryMain(),
                         account.getCategorySub(),
                         account.getPlatformTagsJson(),
-                        account.getCustomFieldsJson()
+                        mergedCustomFields
                 );
                 creatorService.upsertAccount(up);
                 metricsSaved = true;
@@ -270,6 +273,7 @@ public class XhsPgyKolDetailTool implements Tool {
         out.put("priceNote", priceNote);
         out.put("summary", payload.path("summary"));
         out.put("fansPortrait", payload.path("fansPortrait"));
+        out.put("fansProfile", payload.path("fansProfile"));
         out.put("fansHistory", payload.path("fansHistory"));
         out.put("notesRate", payload.path("notesRate"));
         out.put("persistMetrics", metricsSaved);
@@ -295,5 +299,75 @@ public class XhsPgyKolDetailTool implements Tool {
         if (n == null || n.isNull() || n.isMissingNode()) return null;
         String s = n.asText();
         return (s == null || s.isBlank()) ? null : s;
+    }
+
+    private static String mergePgyCustomFields(String existing,
+                                               JsonNode payload,
+                                               JsonNode snapshot,
+                                               String userId) {
+        Map<String, Object> custom = new LinkedHashMap<>();
+        custom.put("pgyUserId", userId);
+        custom.put("pgySyncedAt", java.time.Instant.now().toString());
+        custom.put("pgyPriceNote", textOrNull(snapshot == null ? null : snapshot.get("priceNote")));
+        custom.put("pgyFemalePercent", doubleOrNull(snapshot == null ? null : snapshot.get("femalePercent")));
+        custom.put("pgyMalePercent", doubleOrNull(snapshot == null ? null : snapshot.get("malePercent")));
+        custom.put("pgyDominantAgeGroup", textOrNull(snapshot == null ? null : snapshot.get("dominantAgeGroup")));
+        custom.put("pgyDominantAgePercent", doubleOrNull(snapshot == null ? null : snapshot.get("dominantAgePercent")));
+        custom.put("pgyTopProvince", textOrNull(snapshot == null ? null : snapshot.get("topProvince")));
+        custom.put("pgyTopCity", textOrNull(snapshot == null ? null : snapshot.get("topCity")));
+        custom.put("pgyTopInterest", textOrNull(snapshot == null ? null : snapshot.get("topInterest")));
+        custom.put("fansPortraitSummary", buildFansPortraitSummary(snapshot));
+        custom.put("pgyFansPortraitRaw", nodeToPlain(payload == null ? null : payload.get("fansPortrait")));
+        custom.put("pgyFansProfileRaw", nodeToPlain(payload == null ? null : payload.get("fansProfile")));
+        custom.put("pgyPriceInfoRaw", nodeToPlain(snapshot == null ? null : snapshot.get("priceInfoList")));
+        custom.values().removeIf(v -> v == null || (v instanceof String s && s.isBlank()));
+        if (custom.isEmpty()) return existing;
+        return com.yizhaoqi.smartpai.service.creator.CustomFieldsMerger.merge(existing, toJson(custom));
+    }
+
+    private static String buildFansPortraitSummary(JsonNode snapshot) {
+        if (snapshot == null || snapshot.isMissingNode() || snapshot.isNull()) return null;
+        String female = percentText(doubleOrNull(snapshot.get("femalePercent")));
+        String age = textOrNull(snapshot.get("dominantAgeGroup"));
+        String province = textOrNull(snapshot.get("topProvince"));
+        String interest = textOrNull(snapshot.get("topInterest"));
+        StringBuilder sb = new StringBuilder();
+        if (female != null) sb.append("女性 ").append(female);
+        if (age != null) {
+            if (sb.length() > 0) sb.append("，");
+            sb.append("主年龄 ").append(age);
+        }
+        if (province != null) {
+            if (sb.length() > 0) sb.append("，");
+            sb.append("TOP省份 ").append(province);
+        }
+        if (interest != null) {
+            if (sb.length() > 0) sb.append("，");
+            sb.append("兴趣 ").append(interest);
+        }
+        return sb.isEmpty() ? null : sb.toString();
+    }
+
+    private static String percentText(Double value) {
+        if (value == null) return null;
+        return String.format(java.util.Locale.ROOT, "%.1f%%", value * 100d);
+    }
+
+    private static Object nodeToPlain(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return null;
+        try {
+            return MAPPER.convertValue(node, Object.class);
+        } catch (Exception e) {
+            return node.toString();
+        }
+    }
+
+    private static String toJson(Object value) {
+        if (value == null) return null;
+        try {
+            return MAPPER.writeValueAsString(value);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

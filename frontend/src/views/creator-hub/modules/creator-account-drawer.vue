@@ -105,6 +105,10 @@ function parseCustomFields(raw?: string | null): Record<string, unknown> {
     return {};
   }
 }
+
+function customValue(key: string) {
+  return parseCustomFields(props.detail?.account?.customFields)[key];
+}
 </script>
 
 <template>
@@ -145,7 +149,41 @@ function parseCustomFields(raw?: string | null): Record<string, unknown> {
           <NDescriptionsItem label="主赛道">{{ detail.account.categoryMain || '-' }}</NDescriptionsItem>
           <NDescriptionsItem label="子赛道">{{ detail.account.categorySub || '-' }}</NDescriptionsItem>
           <NDescriptionsItem label="地区">{{ detail.account.region || '-' }}</NDescriptionsItem>
+          <NDescriptionsItem label="小红书号">{{ String(customValue('redId') || '-') }}</NDescriptionsItem>
+          <NDescriptionsItem label="最新 noteId">{{ String(customValue('latestNoteId') || '-') }}</NDescriptionsItem>
+          <NDescriptionsItem label="蒲公英报价">{{ String(customValue('pgyPriceNote') || '-') }}</NDescriptionsItem>
+          <NDescriptionsItem label="女性粉丝占比">{{ String(customValue('pgyFemalePercent') || '-') }}</NDescriptionsItem>
+          <NDescriptionsItem label="主年龄段">{{ String(customValue('pgyDominantAgeGroup') || '-') }}</NDescriptionsItem>
+          <NDescriptionsItem label="画像摘要">{{ String(customValue('fansPortraitSummary') || '-') }}</NDescriptionsItem>
         </NDescriptions>
+
+        <div
+          v-if="customValue('latestNoteUrl') || detail.account.homepageUrl"
+          class="flex flex-wrap gap-2"
+        >
+          <NButton
+            v-if="detail.account.homepageUrl"
+            tag="a"
+            :href="detail.account.homepageUrl"
+            target="_blank"
+            size="small"
+            tertiary
+            type="primary"
+          >
+            打开主页
+          </NButton>
+          <NButton
+            v-if="customValue('latestNoteUrl')"
+            tag="a"
+            :href="String(customValue('latestNoteUrl'))"
+            target="_blank"
+            size="small"
+            tertiary
+            type="primary"
+          >
+            打开最新笔记
+          </NButton>
+        </div>
 
         <div v-if="parseTags(detail.account.platformTags).length" class="flex-col gap-8px">
           <div class="text-3.5 font-bold">平台标签</div>

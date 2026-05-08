@@ -42,12 +42,17 @@ async function load() {
   }
 }
 
+/** 后端 Project.Status 序列化为小写 "archived"；历史数据大写时也能兼容。 */
+function isArchived(row?: Api.Project.Item | null): boolean {
+  return !!row && String(row.status || '').toLowerCase() === 'archived';
+}
+
 // 活跃项目优先 + 最近更新靠前
 const visibleProjects = computed(() => {
   const items = [...rows.value];
   items.sort((a, b) => {
-    const sa = a.status === 'ARCHIVED' ? 1 : 0;
-    const sb = b.status === 'ARCHIVED' ? 1 : 0;
+    const sa = isArchived(a) ? 1 : 0;
+    const sb = isArchived(b) ? 1 : 0;
     if (sa !== sb) return sa - sb;
     const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
     const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
@@ -55,6 +60,16 @@ const visibleProjects = computed(() => {
   });
   return items;
 });
+
+/** 后端 Project 把 enabledTools/enabledSkills 字段序列化成 enabledToolsJson/enabledSkillsJson。 */
+function projectToolsRaw(row: Api.Project.Item): string | string[] | null | undefined {
+  const r = row as unknown as Record<string, unknown>;
+  return (r.enabledTools as any) ?? (r.enabledToolsJson as any) ?? null;
+}
+function projectSkillsRaw(row: Api.Project.Item): string | string[] | null | undefined {
+  const r = row as unknown as Record<string, unknown>;
+  return (r.enabledSkills as any) ?? (r.enabledSkillsJson as any) ?? null;
+}
 
 // 创建
 const editVisible = ref(false);
@@ -120,8 +135,9 @@ function openProject(row: Api.Project.Item) {
   router.push({ name: 'agent-project-detail', params: { id: String(row.id) } });
 }
 
-function parseList(raw?: string | null): string[] {
+function parseList(raw?: string | null | string[]): string[] {
   if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(String);
   try {
     const v = JSON.parse(raw);
     return Array.isArray(v) ? v.map(String) : [];
@@ -164,7 +180,7 @@ onMounted(load);
           hoverable
           size="small"
           class="cursor-pointer transition-all hover:shadow-md"
-          :class="row.status === 'ARCHIVED' ? 'opacity-60' : ''"
+          :class="isArchived(row) ? 'opacity-60' : ''"
           @click="openProject(row)"
         >
           <div class="flex-col gap-8px">
@@ -175,23 +191,23 @@ onMounted(load);
                   {{ row.description || '—' }}
                 </span>
               </div>
-              <NTag size="small" :type="row.status === 'ARCHIVED' ? 'default' : 'success'" :bordered="false">
-                {{ row.status === 'ARCHIVED' ? '已归档' : '进行中' }}
+              <NTag size="small" :type="isArchived(row) ? 'default' : 'success'" :bordered="false">
+                {{ isArchived(row) ? '已归档' : '进行中' }}
               </NTag>
             </div>
 
-            <div v-if="parseList(row.enabledTools).length" class="flex flex-wrap gap-1">
-              <NTag v-for="t in parseList(row.enabledTools).slice(0, 4)" :key="t" size="tiny" :bordered="false">
+            <div v-if="parseList(projectToolsRaw(row)).length" class="flex flex-wrap gap-1">
+              <NTag v-for="t in parseList(projectToolsRaw(row)).slice(0, 4)" :key="t" size="tiny" :bordered="false">
                 {{ t }}
               </NTag>
-              <span v-if="parseList(row.enabledTools).length > 4" class="text-xs text-stone-400">
-                +{{ parseList(row.enabledTools).length - 4 }}
+              <span v-if="parseList(projectToolsRaw(row)).length > 4" class="text-xs text-stone-400">
+                +{{ parseList(projectToolsRaw(row)).length - 4 }}
               </span>
             </div>
 
-            <div v-if="parseList(row.enabledSkills).length" class="flex flex-wrap gap-1">
+            <div v-if="parseList(projectSkillsRaw(row)).length" class="flex flex-wrap gap-1">
               <NTag
-                v-for="s in parseList(row.enabledSkills).slice(0, 3)"
+                v-for="s in parseList(projectSkillsRaw(row)).slice(0, 3)"
                 :key="s"
                 size="tiny"
                 type="warning"
@@ -211,7 +227,7 @@ onMounted(load);
               </span>
               <NPopconfirm @positive-click.stop="handleArchive(row)" @click.stop>
                 <template #trigger>
-                  <NButton text size="tiny" type="error" :disabled="row.status === 'ARCHIVED'" @click.stop>
+                  <NButton text size="tiny" type="error" :disabled="isArchived(row)" @click.stop>
                     归档
                   </NButton>
                 </template>

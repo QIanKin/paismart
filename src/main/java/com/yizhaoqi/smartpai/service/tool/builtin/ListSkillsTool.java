@@ -1,6 +1,7 @@
 package com.yizhaoqi.smartpai.service.tool.builtin;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.yizhaoqi.smartpai.config.SkillProperties;
 import com.yizhaoqi.smartpai.service.skill.LoadedSkill;
 import com.yizhaoqi.smartpai.service.skill.SkillRegistry;
 import com.yizhaoqi.smartpai.service.tool.Tool;
@@ -22,10 +23,12 @@ import java.util.Map;
 public class ListSkillsTool implements Tool {
 
     private final SkillRegistry registry;
+    private final SkillProperties properties;
     private final JsonNode schema;
 
-    public ListSkillsTool(SkillRegistry registry) {
+    public ListSkillsTool(SkillRegistry registry, SkillProperties properties) {
         this.registry = registry;
+        this.properties = properties;
         this.schema = ToolInputSchemas.object()
                 .stringProp("filter", "可选的名称关键字，忽略大小写包含匹配", false)
                 .additionalProperties(false)
@@ -35,12 +38,15 @@ public class ListSkillsTool implements Tool {
     @Override public String name() { return "list_skills"; }
     @Override public String description() {
         return "列出当前企业/用户可用的 skill。每个 skill 含 name/description/scripts/requiredBins。"
-                + "发现相关 skill 后，用 use_skill 读取详细指引，再用 bash 执行脚本。";
+                + "发现相关 skill 后，用 use_skill 读取详细指引；若缺少可复用流程，可用 skill_upsert 创建新 skill。";
     }
     @Override public JsonNode inputSchema() { return schema; }
 
     @Override
     public ToolResult call(ToolContext ctx, JsonNode input) {
+        if (!properties.isEnabled()) {
+            return ToolResult.error("skills_disabled", "skill 子系统未启用，请检查 skills.enabled 配置");
+        }
         String filter = input.has("filter") ? input.get("filter").asText("").trim().toLowerCase() : "";
         List<LoadedSkill> all = registry.listVisible(ctx.orgTag());
         List<Map<String, Object>> out = new ArrayList<>();

@@ -149,7 +149,7 @@ public class CreatorController {
                 new CreatorService.AccountSearchQuery(u.getPrimaryOrg(), platform, keyword, categoryMain,
                         followersMin, followersMax, verifiedOnly, creatorId, tagContains),
                 pageable);
-        return ok(pageToMap(p));
+        return ok(pageToMap(p.map(this::toAccountView)));
     }
 
     @GetMapping("/accounts/{id}")
@@ -160,15 +160,15 @@ public class CreatorController {
         return creatorService.getAccount(id, u.getPrimaryOrg())
                 .<ResponseEntity<Object>>map(a -> {
                     Map<String, Object> payload = new LinkedHashMap<>();
-                    payload.put("account", a);
+                    payload.put("account", toAccountView(a));
                     if (a.getCreatorId() != null) {
                         creatorRepository.findById(a.getCreatorId())
                                 .filter(c -> u.getPrimaryOrg().equals(c.getOwnerOrgTag()))
-                                .ifPresent(c -> payload.put("creator", c));
+                                .ifPresent(c -> payload.put("creator", toCreatorView(c)));
                     }
                     if (includePosts) {
                         List<CreatorPost> posts = creatorService.latestPostsOf(id);
-                        payload.put("recentPosts", posts);
+                        payload.put("recentPosts", posts.stream().map(this::toPostView).toList());
                     }
                     return ok(payload);
                 })
@@ -218,7 +218,7 @@ public class CreatorController {
         payload.put("total", p.getTotalElements());
         payload.put("page", p.getNumber());
         payload.put("size", p.getSize());
-        payload.put("items", p.getContent());
+        payload.put("items", p.getContent().stream().map(this::toPostView).toList());
         payload.put("mostRecentSnapshotAt", freshness.mostRecentSnapshotAt());
         payload.put("stale", freshness.stale());
         return ok(payload);
@@ -280,6 +280,19 @@ public class CreatorController {
             out.put("skipped", r.skipped());
         }
         return ok(out);
+    }
+
+    /**
+     * 通用刷新入口。当前所有 source 都走 TikHub 公开 API（{@code XhsRefreshService}）。
+     *
+     * <p>历史上 source=qiangua 走千瓜 / source=xhs_cookie 走 Spider_XHS+cookie，已统一下线。
+     * 入参里的 source 保留只是为了不破坏老前端调用，无论传啥都走 TikHub。
+     */
+    @PostMapping("/accounts/{id}/refresh")
+    public ResponseEntity<Object> refreshAccount(@RequestHeader("Authorization") String auth,
+                                                 @PathVariable Long id,
+                                                 @RequestBody(required = false) Map<String, Object> body) {
+        return refreshXhsAccount(auth, id, body);
     }
 
     // ---------- Custom field definitions ----------
@@ -406,6 +419,92 @@ public class CreatorController {
         m.put("size", p.getSize());
         m.put("items", p.getContent());
         return m;
+    }
+
+    private Map<String, Object> toCreatorView(Creator c) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", c.getId());
+        out.put("ownerOrgTag", c.getOwnerOrgTag());
+        out.put("displayName", c.getDisplayName());
+        out.put("realName", c.getRealName());
+        out.put("gender", c.getGender());
+        out.put("birthYear", c.getBirthYear());
+        out.put("city", c.getCity());
+        out.put("country", c.getCountry());
+        out.put("personaTags", c.getPersonaTagsJson());
+        out.put("trackTags", c.getTrackTagsJson());
+        out.put("cooperationStatus", c.getCooperationStatus());
+        out.put("internalOwnerId", c.getInternalOwnerId());
+        out.put("internalNotes", c.getInternalNotes());
+        out.put("priceNote", c.getPriceNote());
+        out.put("customFields", c.getCustomFieldsJson());
+        out.put("createdBy", c.getCreatedBy());
+        out.put("createdAt", c.getCreatedAt());
+        out.put("updatedAt", c.getUpdatedAt());
+        return out;
+    }
+
+    private Map<String, Object> toAccountView(CreatorAccount a) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", a.getId());
+        out.put("creatorId", a.getCreatorId());
+        out.put("ownerOrgTag", a.getOwnerOrgTag());
+        out.put("platform", a.getPlatform());
+        out.put("platformUserId", a.getPlatformUserId());
+        out.put("handle", a.getHandle());
+        out.put("displayName", a.getDisplayName());
+        out.put("avatarUrl", a.getAvatarUrl());
+        out.put("bio", a.getBio());
+        out.put("followers", a.getFollowers());
+        out.put("following", a.getFollowing());
+        out.put("likes", a.getLikes());
+        out.put("posts", a.getPosts());
+        out.put("avgLikes", a.getAvgLikes());
+        out.put("avgComments", a.getAvgComments());
+        out.put("hitRatio", a.getHitRatio());
+        out.put("engagementRate", a.getEngagementRate());
+        out.put("verified", a.getVerified());
+        out.put("verifyType", a.getVerifyType());
+        out.put("region", a.getRegion());
+        out.put("homepageUrl", a.getHomepageUrl());
+        out.put("categoryMain", a.getCategoryMain());
+        out.put("categorySub", a.getCategorySub());
+        out.put("platformTags", a.getPlatformTagsJson());
+        out.put("customFields", a.getCustomFieldsJson());
+        out.put("lastSyncAt", a.getLatestSnapshotAt());
+        out.put("createdAt", a.getCreatedAt());
+        out.put("updatedAt", a.getUpdatedAt());
+        return out;
+    }
+
+    private Map<String, Object> toPostView(CreatorPost p) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", p.getId());
+        out.put("accountId", p.getAccountId());
+        out.put("platform", p.getPlatform());
+        out.put("platformPostId", p.getPlatformPostId());
+        out.put("type", p.getPostType());
+        out.put("postType", p.getPostType());
+        out.put("title", p.getTitle());
+        out.put("content", p.getContentText());
+        out.put("contentText", p.getContentText());
+        out.put("cover", p.getCoverUrl());
+        out.put("coverUrl", p.getCoverUrl());
+        out.put("postUrl", p.getLink());
+        out.put("link", p.getLink());
+        out.put("publishedAt", p.getPublishedAt());
+        out.put("duration", p.getDurationSec());
+        out.put("durationSec", p.getDurationSec());
+        out.put("likes", p.getLikes());
+        out.put("comments", p.getComments());
+        out.put("shares", p.getShares());
+        out.put("collects", p.getCollects());
+        out.put("views", p.getViews());
+        out.put("isHit", p.getIsHit());
+        out.put("hashtags", p.getHashtagsJson());
+        out.put("hitStructureTags", p.getHitStructureTagsJson());
+        out.put("screenshotKey", p.getScreenshotKey());
+        return out;
     }
 
     private CreatorService.CreatorUpsertRequest toCreatorReq(Map<String, Object> body, Long id, User u) {

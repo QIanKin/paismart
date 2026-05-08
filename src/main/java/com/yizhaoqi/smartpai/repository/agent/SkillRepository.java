@@ -12,6 +12,8 @@ public interface SkillRepository extends JpaRepository<Skill, Long> {
 
     Optional<Skill> findByNameAndOwnerOrgTag(String name, String ownerOrgTag);
 
+    Optional<Skill> findByNameAndOwnerOrgTagIsNull(String name);
+
     List<Skill> findByEnabledTrueAndOwnerOrgTagIsNull();
 
     List<Skill> findByEnabledTrueAndOwnerOrgTag(String ownerOrgTag);

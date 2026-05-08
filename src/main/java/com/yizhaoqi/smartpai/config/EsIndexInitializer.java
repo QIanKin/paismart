@@ -14,7 +14,6 @@ import org.apache.http.ConnectionClosedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.io.StringReader;
 import java.net.ConnectException;
@@ -35,6 +34,9 @@ public class EsIndexInitializer implements CommandLineRunner {
 
     @Value("classpath:es-mappings/knowledge_base.json") // 加载 JSON 文件
     private org.springframework.core.io.Resource mappingResource;
+
+    @Value("classpath:es-mappings/agent_memory.json")
+    private org.springframework.core.io.Resource agentMemoryMappingResource;
 
     @Value("${elasticsearch.host}")
     private String host;
@@ -83,36 +85,33 @@ public class EsIndexInitializer implements CommandLineRunner {
      * @throws Exception
      */
     private void initializeIndex() throws Exception {
-        // 检查索引是否存在
-        BooleanResponse existsResponse = esClient.indices().exists(ExistsRequest.of(e -> e.index("knowledge_base")));
-        if (!existsResponse.value()) {
-            createIndex();
-        } else {
-            logger.info("索引 'knowledge_base' 已存在");
-        }
+        ensureIndexExists("knowledge_base", mappingResource);
+        ensureIndexExists("agent_memory", agentMemoryMappingResource);
     }
 
     /**
-     * 创建索引
-     * @throws Exception
+     * 通用索引存在性 + 创建逻辑。
+     *
+     * <p>把"读模板 → 占位符替换 → 调用 createIndex"抽出来，避免 knowledge_base 与 agent_memory
+     * 的逻辑重复；以后再加新索引（如 creator_brand_match）只需多调一次 ensureIndexExists。
      */
-    private void createIndex() throws Exception {
-        // 读取 JSON 文件内容，使用 InputStream 方式支持 JAR 包内资源
+    private void ensureIndexExists(String indexName, org.springframework.core.io.Resource mapping) throws Exception {
+        BooleanResponse existsResponse = esClient.indices().exists(ExistsRequest.of(e -> e.index(indexName)));
+        if (existsResponse.value()) {
+            logger.info("索引 '{}' 已存在", indexName);
+            return;
+        }
         String rawMapping;
-        try (var inputStream = mappingResource.getInputStream()) {
+        try (var inputStream = mapping.getInputStream()) {
             rawMapping = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         }
-        // 将 ${EMBEDDING_DIMENSION} 占位符替换为当前配置的向量维度
-        // 这样换 embedding 模型时只需改环境变量 EMBEDDING_DIMENSION，不必改 mapping 文件
         final String mappingJson = rawMapping.replace("${EMBEDDING_DIMENSION}", String.valueOf(embeddingDimension));
-        logger.info("应用索引 mapping，dense_vector.dims = {}", embeddingDimension);
-        // 创建索引并应用映射
+        logger.info("正在创建索引 '{}'，dense_vector.dims={}", indexName, embeddingDimension);
         CreateIndexRequest createIndexRequest = CreateIndexRequest.of(c -> c
-                .index("knowledge_base") // 索引名称
-                .withJson(new StringReader(mappingJson)) // 使用 JSON 文件定义映射
-        );
+                .index(indexName)
+                .withJson(new StringReader(mappingJson)));
         esClient.indices().create(createIndexRequest);
-        logger.info("索引 'knowledge_base' 已创建");
+        logger.info("索引 '{}' 已创建", indexName);
     }
 
     private String buildDiagnosticMessage(Exception exception) {

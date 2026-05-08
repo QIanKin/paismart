@@ -7,9 +7,10 @@ import com.yizhaoqi.smartpai.repository.agent.ChatSessionRepository;
 import com.yizhaoqi.smartpai.repository.agent.MemoryItemRepository;
 import com.yizhaoqi.smartpai.service.LlmProviderRouter;
 import com.yizhaoqi.smartpai.service.LlmStreamCallback;
-import com.yizhaoqi.smartpai.service.UsageQuotaService;
+import com.yizhaoqi.smartpai.service.agent.TokenCounter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,20 +46,27 @@ public class MemoryCompactor {
     private final ChatSessionRepository sessionRepository;
     private final MessageStore messageStore;
     private final LlmProviderRouter llmProviderRouter;
-    private final UsageQuotaService usageQuotaService;
+    private final TokenCounter tokenCounter;
+    /**
+     * 可选：当 ES 可用时，把新写入的 compaction 摘要异步索引到 agent_memory，
+     * 后续 {@link MemoryRecallService} 才能跨会话 KNN 召回。
+     */
+    private final ObjectProvider<AgentMemoryEsService> agentMemoryEsServiceProvider;
 
     public MemoryCompactor(AgentMessageRepository messageRepository,
                            MemoryItemRepository memoryItemRepository,
                            ChatSessionRepository sessionRepository,
                            MessageStore messageStore,
                            LlmProviderRouter llmProviderRouter,
-                           UsageQuotaService usageQuotaService) {
+                           TokenCounter tokenCounter,
+                           ObjectProvider<AgentMemoryEsService> agentMemoryEsServiceProvider) {
         this.messageRepository = messageRepository;
         this.memoryItemRepository = memoryItemRepository;
         this.sessionRepository = sessionRepository;
         this.messageStore = messageStore;
         this.llmProviderRouter = llmProviderRouter;
-        this.usageQuotaService = usageQuotaService;
+        this.tokenCounter = tokenCounter;
+        this.agentMemoryEsServiceProvider = agentMemoryEsServiceProvider;
     }
 
     public record CompactionResult(boolean compacted, Long memoryItemId, int fromSeq, int toSeq, int keptTail) {}
@@ -111,13 +119,19 @@ public class MemoryCompactor {
         item.setFullText(summary);
         item.setFromSeq(fromSeq);
         item.setToSeq(toSeq);
-        item.setTokenEstimate(usageQuotaService.estimateTextTokens(summary));
+        item.setTokenEstimate(tokenCounter.countText(summary));
         MemoryItem saved = memoryItemRepository.save(item);
 
         int updated = messageRepository.markCompacted(sessionId, fromSeq, toSeq);
         session.setCompactedBeforeSeq(toSeq);
         sessionRepository.save(session);
         messageStore.invalidateL1(sessionId);
+
+        // 异步把新摘要写入 agent_memory ES 索引，给跨会话 KNN 召回用
+        AgentMemoryEsService esService = agentMemoryEsServiceProvider.getIfAvailable();
+        if (esService != null) {
+            esService.indexAsync(saved);
+        }
 
         logger.info("MemoryCompactor 完成 sessionId={} range=[{},{}] marked={} memoryItemId={} tokens={}",
                 sessionId, fromSeq, toSeq, updated, saved.getId(), item.getTokenEstimate());

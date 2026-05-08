@@ -2,12 +2,61 @@ import json
 import requests
 from xhs_utils.cookie_util import trans_cookies
 from xhs_utils.xhs_pugongying_util import generate_pugongying_headers, get_pugongying_bozhu_data, generate_pugongying_data
-from xhs_utils.xhs_util import get_request_headers_template
 
 
 class PuGongYingAPI:
     def __init__(self):
         self.base_url = "https://pgy.xiaohongshu.com"
+
+    @staticmethod
+    def _plain_headers():
+        # user/info 不走 x-s 签名；这里用 pgy 站点自己的 Referer/UA，
+        # 避免沿用主站 edith headers 导致后端把请求判成“无登录信息”。
+        return {
+            "accept": "application/json, text/plain, */*",
+            "referer": "https://pgy.xiaohongshu.com/solar/pre-trade/kol",
+            "user-agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+        }
+
+    @staticmethod
+    def _extract_brand_user_id(self_info):
+        if not isinstance(self_info, dict):
+            raise KeyError("userId")
+        data = self_info.get("data") or {}
+        if not isinstance(data, dict):
+            raise KeyError("userId")
+
+        direct = data.get("userId") or data.get("user_id")
+        if direct:
+            return direct
+
+        role_infos = data.get("roleInfoList") or []
+        if isinstance(role_infos, list):
+            for item in role_infos:
+                if not isinstance(item, dict):
+                    continue
+                picked = (
+                    item.get("userId")
+                    or item.get("user_id")
+                    or item.get("parentUserId")
+                    or item.get("buserId")
+                )
+                if picked:
+                    return picked
+
+        fallback = (
+            data.get("parentUserId")
+            or data.get("buserId")
+            or data.get("sellerId")
+            or data.get("arkSellerId")
+        )
+        if fallback:
+            return fallback
+        raise KeyError("userId")
 
     def get_all_categories(self, cookies):
         api = '/api/solar/cooperator/content/tag_tree'
@@ -36,7 +85,7 @@ class PuGongYingAPI:
     def get_user_by_page(self, page, cookies, contentTag=None):
         api = "/api/solar/cooperator/blogger/v2"
         self_info = self.get_self_info(cookies)
-        brandUserId = self_info["data"]["userId"]
+        brandUserId = self._extract_brand_user_id(self_info)
         # brandUserId = cookies['x-user-id-ark.xiaohongshu.com']
         data = get_pugongying_bozhu_data(page, brandUserId, contentTag)
         trackId = self.get_track(data, cookies)["data"]["trackId"]
@@ -81,6 +130,26 @@ class PuGongYingAPI:
         response = requests.get(self.base_url + api, headers=headers, cookies=cookies, params=params)
         return response.json()
 
+    def get_user_fans_profile(self, user_id, cookies):
+        params = {
+            "userId": user_id
+        }
+        last_error = None
+        # 新版页面真实使用 data_v3/fans_profile；保留旧风格 fallback，避免线上路径回滚时直接挂死。
+        for api in ("/api/solar/kol/data_v3/fans_profile", "/api/solar/kol/dataV3/fansProfile"):
+            headers = generate_pugongying_headers(cookies['a1'], api)
+            response = requests.get(self.base_url + api, headers=headers, cookies=cookies, params=params)
+            if response.status_code == 404:
+                last_error = RuntimeError(f"{api} http=404")
+                continue
+            try:
+                return response.json()
+            except Exception as e:
+                last_error = e
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("fans_profile unavailable")
+
     def get_user_fans_history(self, user_id, cookies):
         api = f"/api/solar/kol/data/{user_id}/fans_overall_new_history"
         params = {
@@ -106,14 +175,14 @@ class PuGongYingAPI:
 
     def get_self_info(self, cookies):
         url = "https://pgy.xiaohongshu.com/api/solar/user/info"
-        headers = get_request_headers_template()
+        headers = self._plain_headers()
         response = requests.get(url, headers=headers, cookies=cookies)
         return response.json()
 
     def send_invite(self, user_id, cookies, productName, time, inviteContent, contactInfo):
         api = "/api/solar/invite/initiate_invite"
         self_info = self.get_self_info(cookies)
-        cooperateBrandId = self_info["data"]["userId"]
+        cooperateBrandId = self._extract_brand_user_id(self_info)
         cooperateBrandName = self_info["data"]["nickName"]
         data = {
             "kolId": user_id,
@@ -144,12 +213,14 @@ if __name__ == '__main__':
         user_id = user["userId"]
         user_detail = pugongying_api.get_user_detail(user_id, cookies)
         fans_detail = pugongying_api.get_user_fans_detail(user_id, cookies)
+        fans_profile = pugongying_api.get_user_fans_profile(user_id, cookies)
         fans_history = pugongying_api.get_user_fans_history(user_id, cookies)
         notes_detail = pugongying_api.get_user_notes_detail(user_id, cookies)
         # 期望发布时间 产品名称，【开始时间，结束时间】，合作内容介绍，联系方式
         invite_res = pugongying_api.send_invite(user_id, cookies, "测试", ["2021-10-01", "2021-10-01"], "测试", "")
         print(user_detail)
         print(fans_detail)
+        print(fans_profile)
         print(fans_history)
         print(notes_detail)
         print(invite_res)

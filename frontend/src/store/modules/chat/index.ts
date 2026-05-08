@@ -27,7 +27,8 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
       return undefined;
     }
 
-    return `/proxy-ws/chat/${encodeURIComponent(token)}`;
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return protocol + "//" + window.location.host + "/proxy-ws/chat/" + encodeURIComponent(token);
   });
 
   const {

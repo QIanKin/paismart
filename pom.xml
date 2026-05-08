@@ -199,6 +199,14 @@
             <artifactId>snakeyaml</artifactId>
             <version>2.2</version>
         </dependency>
+
+        <!-- jtokkit: tiktoken 兼容的本地 tokenizer（cl100k_base / o200k_base），
+             用来做精确的 prompt token 估算，避免之前按字符比例的"经验估算"在中文场景偏差 30%+ -->
+        <dependency>
+            <groupId>com.knuddels</groupId>
+            <artifactId>jtokkit</artifactId>
+            <version>1.1.0</version>
+        </dependency>
         <!-- Apache POI for Excel export (Phase 4B) -->
         <dependency>
             <groupId>org.apache.poi</groupId>

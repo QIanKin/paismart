@@ -46,6 +46,18 @@ public class SystemStatusTool implements Tool {
     @Value("${smartpai.browser.cdp-endpoint:}")
     private String cdpEndpoint;
 
+    @Value("${smartpai.browser.mode:managed}")
+    private String browserMode;
+
+    @Value("${smartpai.browser.profile-root:./var/browser-profiles}")
+    private String browserProfileRoot;
+
+    @Value("${smartpai.browser.node-modules-path:}")
+    private String browserNodeModulesPath;
+
+    @Value("${smartpai.browser.executable-path:}")
+    private String browserExecutablePath;
+
     @Value("${smartpai.xhs.spotlight-seed.enabled:false}")
     private boolean spotlightSeedEnabled;
 
@@ -112,11 +124,17 @@ public class SystemStatusTool implements Tool {
         // 3. 关键配置自检
         List<Map<String, String>> missing = new ArrayList<>();
 
-        if (cdpEndpoint == null || cdpEndpoint.isBlank()) {
+        boolean externalBrowser = "external".equalsIgnoreCase(browserMode);
+        if (externalBrowser && (cdpEndpoint == null || cdpEndpoint.isBlank())) {
             missing.add(issue("browser.cdp-endpoint",
                     "浏览器 CDP 未配置",
-                    "千瓜发现 / 撤回评论 等依赖真实登录态的 skill 将无法运行。"
-                            + "在 .env 里填 SMARTPAI_BROWSER_CDP_ENDPOINT=http://<业务员机器>:9222。"));
+                    "当前 smartpai.browser.mode=external，但 CDP endpoint 为空。"
+                            + "在 .env 里填 SMARTPAI_BROWSER_CDP_ENDPOINT=http://<browser-host>:9222，或切回 managed。"));
+        }
+        if (browserNodeModulesPath == null || browserNodeModulesPath.isBlank()) {
+            missing.add(issue("browser.node-modules-path",
+                    "浏览器 Playwright 运行时路径未配置",
+                    "蒲公英 brand-side skill / 扫码登录 skill 需要能 import playwright。请配置 SMARTPAI_BROWSER_NODE_MODULES。"));
         }
 
         long spotlightActive = orgCookies.stream()
@@ -148,6 +166,13 @@ public class SystemStatusTool implements Tool {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("dataSources", byPlatform);
         data.put("agentCapabilities", capabilities);
+        data.put("browser", Map.of(
+                "mode", browserMode == null ? "" : browserMode,
+                "cdpEndpointConfigured", cdpEndpoint != null && !cdpEndpoint.isBlank(),
+                "profileRoot", browserProfileRoot == null ? "" : browserProfileRoot,
+                "nodeModulesPath", browserNodeModulesPath == null ? "" : browserNodeModulesPath,
+                "executablePathConfigured", browserExecutablePath != null && !browserExecutablePath.isBlank()
+        ));
         data.put("missingConfig", missing);
         data.put("missingCount", missing.size());
 

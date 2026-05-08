@@ -213,9 +213,8 @@ services:
       XHS_SPOTLIGHT_APP_ID: ${XHS_SPOTLIGHT_APP_ID:-}
       XHS_SPOTLIGHT_APP_SECRET: ${XHS_SPOTLIGHT_APP_SECRET:-}
 
-      # 业务员本机 Chrome CDP 桥接（千瓜 / XHS 浏览器自动化）
-      # 9223 是 acceptance/start-qiangua-chrome.bat 启动的 Node 代理端口
-      # （Chrome 147+ 拒绝非 localhost 源直连 9222，必须经代理改写 Host 头）
+      # 蒲公英 cookie 池抓粉丝画像/KOL 列表时偶尔需要业务员本机的 Chrome CDP 桥接；
+      # 不配也不会破坏主链路（公开数据已统一走 TikHub）。
       SMARTPAI_BROWSER_CDP_ENDPOINT: ${SMARTPAI_BROWSER_CDP_ENDPOINT:-http://host.docker.internal:9223}
 
       # Skill 子系统
@@ -240,16 +239,56 @@ services:
       # 跨域白名单：带上你的服务器 IP
       SECURITY_ALLOWED_ORIGINS: ${SECURITY_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
 
-      # AI 配置
-      DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-https://api.deepseek.com/v1}
-      DEEPSEEK_API_MODEL: ${DEEPSEEK_API_MODEL:-deepseek-chat}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      # === LLM 配置（OpenAI Chat Completions 兼容协议） ===
+      # 主入口：LLM_API_*；任何兼容厂商（DeepSeek/SiliconFlow/Qwen/智谱 GLM/本地 vLLM…）都用这一组。
+      LLM_API_URL: ${LLM_API_URL:-${DEEPSEEK_API_URL:-https://api.deepseek.com/v1}}
+      LLM_API_MODEL: ${LLM_API_MODEL:-${DEEPSEEK_API_MODEL:-deepseek-chat}}
+      LLM_API_KEY: ${LLM_API_KEY:-${DEEPSEEK_API_KEY}}
+      # 旧 key 别名（向后兼容；新项目请直接用 LLM_API_*）
+      DEEPSEEK_API_URL: ${DEEPSEEK_API_URL:-${LLM_API_URL:-https://api.deepseek.com/v1}}
+      DEEPSEEK_API_MODEL: ${DEEPSEEK_API_MODEL:-${LLM_API_MODEL:-deepseek-chat}}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-${LLM_API_KEY}}
+      AGENT_INLINE_IMAGE_DATA_URL_FOR_MODEL: ${AGENT_INLINE_IMAGE_DATA_URL_FOR_MODEL:-true}
       EMBEDDING_API_URL: ${EMBEDDING_API_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       EMBEDDING_API_MODEL: ${EMBEDDING_API_MODEL:-text-embedding-v4}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY}
       # 向量维度（text-embedding-v4=2048, Qwen3-Embedding-0.6B=1024, bge-large-zh-v1.5=1024 等）
       # 换模型后务必改这里，并删除 ES 旧索引重建
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-2048}
+
+      # ===== TikHub 第三方小红书 API（视频解析/下载）=====
+      XHS_THIRD_PARTY_ENABLED: ${XHS_THIRD_PARTY_ENABLED:-true}
+      XHS_THIRD_PARTY_PROVIDER: ${XHS_THIRD_PARTY_PROVIDER:-tikhub}
+      XHS_TIKHUB_ENABLED: ${XHS_TIKHUB_ENABLED:-true}
+      XHS_TIKHUB_BASE_URL: ${XHS_TIKHUB_BASE_URL:-https://api.tikhub.io}
+      XHS_TIKHUB_API_KEY: ${XHS_TIKHUB_API_KEY}
+      XHS_TIKHUB_DEFAULT_QUALITY: ${XHS_TIKHUB_DEFAULT_QUALITY:-best}
+      XHS_TIKHUB_MAX_VIDEO_BYTES: ${XHS_TIKHUB_MAX_VIDEO_BYTES:-209715200}
+
+      # ===== ASR =====
+      # provider=whisper-compatible：默认 backend 容器内 local-faster-whisper（python 子进程），零额外镜像
+      # provider=dashscope-paraformer-v2：阿里百炼，要求 MinIO 公网可达
+      SMARTPAI_ASR_ENABLED: ${SMARTPAI_ASR_ENABLED:-true}
+      SMARTPAI_ASR_PROVIDER: ${SMARTPAI_ASR_PROVIDER:-whisper-compatible}
+      # DashScope 路径专用（provider=dashscope-paraformer-v2 时使用）
+      SMARTPAI_ASR_BASE_URL: ${SMARTPAI_ASR_BASE_URL:-https://dashscope.aliyuncs.com}
+      SMARTPAI_ASR_MODEL: ${SMARTPAI_ASR_MODEL:-paraformer-v2}
+      DASHSCOPE_ASR_API_KEY: ${DASHSCOPE_ASR_API_KEY:-}
+      SMARTPAI_ASR_MAX_POLL_SECONDS: ${SMARTPAI_ASR_MAX_POLL_SECONDS:-600}
+      SMARTPAI_ASR_LANGUAGES: ${SMARTPAI_ASR_LANGUAGES:-zh,en}
+      # Whisper：local-faster-whisper=同容器脚本；asr-webservice / openai-compat=HTTP 外连
+      SMARTPAI_WHISPER_MODE: ${SMARTPAI_WHISPER_MODE:-local-faster-whisper}
+      SMARTPAI_WHISPER_BASE_URL: ${SMARTPAI_WHISPER_BASE_URL:-}
+      SMARTPAI_WHISPER_PATH: ${SMARTPAI_WHISPER_PATH:-/asr}
+      SMARTPAI_WHISPER_TASK: ${SMARTPAI_WHISPER_TASK:-transcribe}
+      SMARTPAI_WHISPER_LANGUAGE: ${SMARTPAI_WHISPER_LANGUAGE:-zh}
+      SMARTPAI_WHISPER_OUTPUT: ${SMARTPAI_WHISPER_OUTPUT:-json}
+      SMARTPAI_WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      SMARTPAI_WHISPER_SCRIPT: ${SMARTPAI_WHISPER_SCRIPT:-/app/scripts/local_whisper_transcribe.py}
+      SMARTPAI_WHISPER_TIMEOUT: ${SMARTPAI_WHISPER_TIMEOUT:-600}
+      SMARTPAI_WHISPER_MAX_AUDIO_BYTES: ${SMARTPAI_WHISPER_MAX_AUDIO_BYTES:-209715200}
+      # faster-whisper 首次拉模型用（国内可配 hf-mirror）
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
 
       # 启动知识库引导：首次部署 / 换了 embedding 模型 建议保持 false
       KNOWLEDGE_BOOTSTRAP_ENABLED: ${KNOWLEDGE_BOOTSTRAP_ENABLED:-false}

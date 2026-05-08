@@ -1,6 +1,6 @@
 package com.yizhaoqi.smartpai.service.agent.context.provider;
 
-import com.yizhaoqi.smartpai.service.UsageQuotaService;
+import com.yizhaoqi.smartpai.service.agent.TokenCounter;
 import com.yizhaoqi.smartpai.service.agent.context.ContextContribution;
 import com.yizhaoqi.smartpai.service.agent.context.ContextProvider;
 import com.yizhaoqi.smartpai.service.agent.context.ContextRequest;
@@ -15,10 +15,10 @@ import java.util.Map;
 @Component
 public class SystemPromptContextProvider implements ContextProvider {
 
-    private final UsageQuotaService usage;
+    private final TokenCounter tokenCounter;
 
-    public SystemPromptContextProvider(UsageQuotaService usage) {
-        this.usage = usage;
+    public SystemPromptContextProvider(TokenCounter tokenCounter) {
+        this.tokenCounter = tokenCounter;
     }
 
     @Override public String name() { return "system_prompt"; }
@@ -28,7 +28,7 @@ public class SystemPromptContextProvider implements ContextProvider {
     public List<ContextContribution> contribute(ContextRequest req) {
         String sys = req.systemPrompt();
         if (sys == null || sys.isBlank()) return List.of();
-        int tokens = usage.estimateTextTokens(sys) + 8;
+        int tokens = tokenCounter.countText(sys) + 8;
         Map<String, Object> msg = Map.of("role", "system", "content", sys);
         return List.of(ContextContribution.of("system", 100, tokens, List.of(msg)));
     }

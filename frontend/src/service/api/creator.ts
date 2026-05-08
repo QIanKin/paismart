@@ -93,10 +93,22 @@ export function fetchAccountBatchPosts(id: number, posts: Partial<Api.Creator.Po
   });
 }
 
-/** 一键刷新 xhs 博主最近 N 条笔记（后端走 xhs-user-notes skill + cookie 池）。 */
+/** 一键刷新 xhs 博主最近 N 条笔记（后端走 TikHub 用户搜索/用户笔记链路）。 */
 export function fetchRefreshXhsAccount(id: number, params?: { limit?: number; dryRun?: boolean }) {
   return request<Api.Creator.XhsRefreshResult>({
     url: `/creators/accounts/${id}/refresh:xhs`,
+    method: 'post',
+    data: params ?? {}
+  });
+}
+
+/** 统一刷新入口：当前所有 source 都走 TikHub 公开数据链路。 */
+export function fetchRefreshCreatorAccount(
+  id: number,
+  params?: { source?: Api.Creator.RefreshSource; limit?: number; dryRun?: boolean }
+) {
+  return request<Api.Creator.CreatorRefreshResult>({
+    url: `/creators/accounts/${id}/refresh`,
     method: 'post',
     data: params ?? {}
   });

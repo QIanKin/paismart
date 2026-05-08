@@ -12,8 +12,17 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * xhs_refresh_creator：Agent 调用版本的"一键刷新"，业务逻辑全部走 {@link XhsRefreshService}，
- * 与后台管理页的刷新按钮共享同一链路。
+ * xhs_refresh_creator：刷新博主库里某条 account 的资料和最近 N 条笔记。
+ *
+ * <p>当前实现统一走 TikHub 公开 API（{@link XhsRefreshService}）：
+ * <ol>
+ *   <li>有 platformUserId 或 homepage_url（含 /user/profile/&lt;userId&gt;）→ 直接拿 userId；</li>
+ *   <li>否则用 handle/displayName 调 TikHub {@code search_users}（昵称搜索）→ 取最佳匹配的 userId；</li>
+ *   <li>有了 userId 之后调 {@code fetch_user_info} + {@code fetch_user_notes} 拉资料和近期笔记，
+ *       upsert 进 {@code creator_posts} 并回填 {@code creator_accounts} 的统计字段。</li>
+ * </ol>
+ *
+ * <p>这条链路不依赖任何 cookie / 千瓜抓取，零封号风险。
  */
 @Component
 public class XhsRefreshCreatorTool implements Tool {
@@ -34,8 +43,9 @@ public class XhsRefreshCreatorTool implements Tool {
     @Override public String name() { return "xhs_refresh_creator"; }
 
     @Override public String description() {
-        return "用小红书 PC 端 cookie 拉取指定博主最近 N 条笔记并入库。输入为 creator_accounts.id（platform=xhs）。"
-                + "需要预先有可用的 xhs_pc cookie（可通过 xhs_qr_login_start 扫码或 xhs_cookie_create 录入），失败时会返回 no_cookie 或 cookie_invalid。";
+        return "刷新小红书博主资料/最近 N 条笔记。统一走 TikHub 公开 API：有 platformUserId/主页链接直接用，"
+                + "没有就用 handle/displayName 调 search_users 拿到 userId，再 fetch_user_info + fetch_user_notes。"
+                + "输入是博主库 account id。零 cookie 依赖。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
@@ -55,7 +65,7 @@ public class XhsRefreshCreatorTool implements Tool {
             detail.put("errorType", r.errorType());
             detail.put("accountId", accountId);
             return ToolResult.error(
-                    "xhs-user-notes 执行失败: " + r.errorMessage(), detail);
+                    "xhs_refresh_creator 执行失败: " + r.errorMessage(), detail);
         }
 
         Map<String, Object> out = new LinkedHashMap<>();

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.model.agent.Project;
 import com.yizhaoqi.smartpai.repository.agent.ProjectRepository;
-import com.yizhaoqi.smartpai.service.UsageQuotaService;
+import com.yizhaoqi.smartpai.service.agent.TokenCounter;
 import com.yizhaoqi.smartpai.service.agent.context.ContextContribution;
 import com.yizhaoqi.smartpai.service.agent.context.ContextProvider;
 import com.yizhaoqi.smartpai.service.agent.context.ContextRequest;
@@ -38,16 +38,16 @@ public class ActiveSkillContextProvider implements ContextProvider {
 
     private final SkillRegistry registry;
     private final ProjectRepository projectRepository;
-    private final UsageQuotaService usage;
+    private final TokenCounter tokenCounter;
     private final ObjectMapper mapper;
 
     public ActiveSkillContextProvider(SkillRegistry registry,
                                       ProjectRepository projectRepository,
-                                      UsageQuotaService usage,
+                                      TokenCounter tokenCounter,
                                       ObjectMapper mapper) {
         this.registry = registry;
         this.projectRepository = projectRepository;
-        this.usage = usage;
+        this.tokenCounter = tokenCounter;
         this.mapper = mapper;
     }
 
@@ -85,8 +85,8 @@ public class ActiveSkillContextProvider implements ContextProvider {
         }
         full.append("\n使用约定：先调 `list_skills` / `use_skill(name=...)` 读详情，再通过 `bash` 执行 scripts/ 下的脚本。\n");
 
-        int fullTokens = usage.estimateTextTokens(full.toString()) + 16;
-        int liteTokens = usage.estimateTextTokens(lite.toString()) + 16;
+        int fullTokens = tokenCounter.countText(full.toString()) + 16;
+        int liteTokens = tokenCounter.countText(lite.toString()) + 16;
 
         Map<String, Object> fullMsg = new LinkedHashMap<>();
         fullMsg.put("role", "system");

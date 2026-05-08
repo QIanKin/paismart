@@ -22,6 +22,7 @@ public record AgentRequest(
         String sessionId,
         String conversationId,
         String userMessage,
+        List<Attachment> attachments,
         List<String> enabledTools,
         String systemPromptOverride,
         int maxSteps,
@@ -29,6 +30,8 @@ public record AgentRequest(
 ) {
 
     public AgentRequest {
+        if (attachments == null) attachments = List.of();
+        else attachments = List.copyOf(attachments);
         if (enabledTools == null) enabledTools = List.of();
         else enabledTools = List.copyOf(enabledTools);
         if (maxSteps <= 0) maxSteps = 12;
@@ -45,6 +48,7 @@ public record AgentRequest(
         private String sessionId;
         private String conversationId;
         private String userMessage;
+        private List<Attachment> attachments = Collections.emptyList();
         private List<String> enabledTools = Collections.emptyList();
         private String systemPromptOverride;
         private int maxSteps = 12;
@@ -57,6 +61,7 @@ public record AgentRequest(
         public Builder sessionId(String v) { this.sessionId = v; return this; }
         public Builder conversationId(String v) { this.conversationId = v; return this; }
         public Builder userMessage(String v) { this.userMessage = v; return this; }
+        public Builder attachments(List<Attachment> v) { this.attachments = v == null ? List.of() : v; return this; }
         public Builder enabledTools(List<String> v) { this.enabledTools = v == null ? List.of() : v; return this; }
         public Builder systemPromptOverride(String v) { this.systemPromptOverride = v; return this; }
         public Builder maxSteps(int v) { this.maxSteps = v; return this; }
@@ -64,7 +69,19 @@ public record AgentRequest(
 
         public AgentRequest build() {
             return new AgentRequest(userId, orgTag, role, projectId, sessionId, conversationId,
-                    userMessage, enabledTools, systemPromptOverride, maxSteps, turnTimeoutMs);
+                    userMessage, attachments, enabledTools, systemPromptOverride, maxSteps, turnTimeoutMs);
+        }
+    }
+
+    public record Attachment(
+            String type,
+            String objectKey,
+            String fileName,
+            String mimeType,
+            Long size
+    ) {
+        public Attachment {
+            if (type == null || type.isBlank()) type = "image";
         }
     }
 

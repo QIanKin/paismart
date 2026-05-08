@@ -49,6 +49,12 @@ const SESSION_TYPE_OPTIONS: SelectOption[] = (Object.keys(SESSION_TYPE_META) as 
   value: v
 }));
 
+/** 后端会话实体只暴露 lastActiveAt；兼容旧的 lastMessageAt 字段。 */
+function sessionActiveAt(s: Api.Session.Item): string {
+  const rec = s as unknown as Record<string, unknown>;
+  return String(rec.lastActiveAt ?? rec.lastMessageAt ?? rec.updatedAt ?? rec.createdAt ?? '');
+}
+
 const groups = computed(() => {
   const g: Record<string, Api.Session.Item[]> = {
     ALLOCATION: [],
@@ -69,8 +75,8 @@ async function load(selectFirst = false) {
   loading.value = true;
   try {
     const { data } = await fetchSessionList(props.projectId);
-    list.value = (data ?? []).filter(s => s.status !== 'ARCHIVED');
-    list.value.sort((a, b) => (b.lastMessageAt || b.createdAt || '').localeCompare(a.lastMessageAt || a.createdAt || ''));
+    list.value = (data ?? []).filter(s => (s.status || '').toLowerCase() !== 'archived');
+    list.value.sort((a, b) => (sessionActiveAt(b)).localeCompare(sessionActiveAt(a)));
     if (selectFirst && list.value.length && !props.activeId) {
       emit('change', list.value[0].id);
     }
@@ -243,8 +249,8 @@ const GROUP_ORDER: Array<{ key: Api.Session.SessionType; label: string }> = [
               <div class="mt-2px flex items-center justify-between">
                 <span class="text-xs text-stone-400">
                   {{
-                    item.lastMessageAt
-                      ? new Date(item.lastMessageAt).toLocaleString('zh-CN', { hour12: false }).slice(5, 16)
+                    sessionActiveAt(item)
+                      ? new Date(sessionActiveAt(item)).toLocaleString('zh-CN', { hour12: false }).slice(5, 16)
                       : '未开聊'
                   }}
                   <span v-if="item.creatorId"> · 博主#{{ item.creatorId }}</span>

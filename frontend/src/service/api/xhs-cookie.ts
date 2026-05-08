@@ -34,6 +34,16 @@ export function fetchXhsCookieDelete(id: number) {
   });
 }
 
+/**
+ * 管理员明文回显：后端返回解密后的 cookie / 聚光凭证原文。
+ * 仅用于 ADMIN 打开编辑对话框时把历史值预填回表单；产品定位是"内部管理后台，明文可见"。
+ */
+export function fetchXhsCookieReveal(id: number) {
+  return request<Api.Xhs.CookiePlaintext>({
+    url: `/admin/xhs-cookies/${id}/plaintext`
+  });
+}
+
 /** 预检：把一串 Cookie 文本发给后端，回返 detectedKeys / missingRequired。不落库、不加密。 */
 export function fetchXhsCookieValidate(cookie: string) {
   return request<Api.Xhs.CookieValidateResponse>({

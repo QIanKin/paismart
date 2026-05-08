@@ -8,6 +8,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 对外的单一入口：把 WebSocket 收到的一条用户消息投递到 AgentRuntime。
  * 负责：
@@ -28,6 +31,7 @@ public class AgentMessageDispatcher {
     private final AgentEventPublisher eventPublisher;
     private final RateLimitService rateLimitService;
     private final ThreadPoolTaskExecutor executor;
+    private final ConcurrentHashMap<String, TurnLock> turnLocks = new ConcurrentHashMap<>();
 
     public AgentMessageDispatcher(AgentRuntime agentRuntime,
                                   AgentHistoryStore historyStore,
@@ -44,7 +48,7 @@ public class AgentMessageDispatcher {
     }
 
     public void dispatch(String userId, String userMessage, WebSocketSession session) {
-        dispatch(userId, userMessage, null, null, session);
+        dispatch(userId, userMessage, null, null, List.of(), session);
     }
 
     /**
@@ -52,6 +56,7 @@ public class AgentMessageDispatcher {
      * 均可为空（为空时 AgentRuntime 自动走"默认会话"分支）。
      */
     public void dispatch(String userId, String userMessage, String sessionId, String projectId,
+                         List<AgentRequest.Attachment> attachments,
                          WebSocketSession session) {
         try {
             rateLimitService.checkChatByUser(userId);
@@ -67,22 +72,55 @@ public class AgentMessageDispatcher {
                 .sessionId(sessionId)
                 .projectId(projectId)
                 .userMessage(userMessage)
+                .attachments(attachments)
                 .build();
 
+        String lockKey = turnLockKey(userId, sessionId, projectId);
+        TurnLock turnLock = turnLocks.compute(lockKey, (key, existing) -> {
+            TurnLock lock = existing == null ? new TurnLock() : existing;
+            lock.refs++;
+            return lock;
+        });
         executor.execute(() -> {
             try {
-                agentRuntime.runTurn(req, session);
+                synchronized (turnLock.monitor) {
+                    agentRuntime.runTurn(req, session);
+                }
             } catch (Throwable t) {
                 logger.error("Agent 轮次异常 user={} session={}", userId, session.getId(), t);
                 eventPublisher.publishError(session, null,
                         t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage());
+                eventPublisher.publishCompletion(session, null, "error", "");
+            } finally {
+                turnLocks.computeIfPresent(lockKey, (key, existing) -> {
+                    if (existing != turnLock) return existing;
+                    existing.refs--;
+                    return existing.refs <= 0 ? null : existing;
+                });
             }
         });
+    }
+
+    public void dispatch(String userId, String userMessage, String sessionId, String projectId,
+                         WebSocketSession session) {
+        dispatch(userId, userMessage, sessionId, projectId, List.of(), session);
+    }
+
+    private String turnLockKey(String userId, String sessionId, String projectId) {
+        String scope = sessionId != null && !sessionId.isBlank()
+                ? "session:" + sessionId
+                : (projectId != null && !projectId.isBlank() ? "project:" + projectId : "default");
+        return userId + "|" + scope;
     }
 
     public void stop(String userId, WebSocketSession session) {
         logger.info("收到 stop 指令 user={} session={}", userId, session.getId());
         cancellationRegistry.cancel(session.getId());
         eventPublisher.publishStopped(session, null);
+    }
+
+    private static final class TurnLock {
+        private final Object monitor = new Object();
+        private int refs;
     }
 }

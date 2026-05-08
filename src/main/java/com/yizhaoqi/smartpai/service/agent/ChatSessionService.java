@@ -65,6 +65,16 @@ public class ChatSessionService {
         if (requiresCreator(type) && creatorId == null) {
             throw new IllegalArgumentException("该会话类型必须绑定 creatorId: " + type);
         }
+        // 跨租户 / 越权防御：若指定了 projectId，必须属于当前用户；否则拒绝。
+        // 历史漏洞：任何登录用户带别人的 projectId 建会话，Agent 上下文就会把别人的 system
+        // prompt、项目描述、名册摘要注入模型回答，导致跨组织商业信息泄露。
+        if (projectId != null) {
+            Project project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new IllegalArgumentException("项目不存在: " + projectId));
+            if (project.getOwnerUserId() == null || !project.getOwnerUserId().equals(userId)) {
+                throw new IllegalArgumentException("无权使用该项目: " + projectId);
+            }
+        }
         ChatSession s = new ChatSession();
         s.setUserId(userId);
         s.setOrgTag(orgTag);
@@ -136,9 +146,16 @@ public class ChatSessionService {
         sessionRepository.save(s);
     }
 
-    /** 根据会话 id 反查 project，支持跨服务调用快速拿到 systemPrompt/tools 白名单 */
+    /**
+     * 根据会话反查 project，支持跨服务调用快速拿到 systemPrompt/tools 白名单。
+     * <p>深度防御：即使 session.projectId 指向别人的项目（历史脏数据或越权），也不要把
+     * 该 project 注入 Agent 上下文——返回 null，让 runtime 走默认 prompt。
+     */
     public Project resolveProject(ChatSession session) {
         if (session.getProjectId() == null) return null;
-        return projectRepository.findById(session.getProjectId()).orElse(null);
+        return projectRepository.findById(session.getProjectId())
+                .filter(p -> p.getOwnerUserId() != null
+                        && p.getOwnerUserId().equals(session.getUserId()))
+                .orElse(null);
     }
 }

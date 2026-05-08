@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { nextTick } from 'vue';
+import ChatImagePreviewModal from '@/components/custom/chat-image-preview-modal.vue';
 import { router } from '@/router';
 import { request } from '@/service/request';
-import { formatDate } from '@/utils/common';
+import { fileSize, formatDate } from '@/utils/common';
 import { VueMarkdownIt } from '@/vendor/vue-markdown-shiki';
 defineOptions({ name: 'ChatMessage' });
 
@@ -14,10 +15,54 @@ const props = defineProps<{
 }>();
 
 const authStore = useAuthStore();
+const previewVisible = ref(false);
+const previewImages = ref<Array<{ url?: string | null; fileName?: string | null }>>([]);
+const previewIndex = ref(0);
 
 function handleCopy(content: string) {
   navigator.clipboard.writeText(content);
   window.$message?.success('已复制');
+}
+
+function openImagePreview(images: Api.Session.Attachment[] | null | undefined, index = 0) {
+  const list = (images || [])
+    .filter(item => Boolean(item.url) && isImageAttachment(item))
+    .map(item => ({
+      url: item.url,
+      fileName: item.fileName
+    }));
+  if (!list.length) return;
+  previewImages.value = list;
+  previewIndex.value = Math.min(Math.max(index, 0), list.length - 1);
+  previewVisible.value = true;
+}
+
+function isImageAttachment(attachment: { type?: string | null; mimeType?: string | null }) {
+  return String(attachment.mimeType || '').startsWith('image/') || String(attachment.type || '') === 'image';
+}
+
+function openAttachment(attachment: Api.Session.Attachment | undefined | null) {
+  if (!attachment?.url) return;
+  if (isImageAttachment(attachment)) return;
+  window.open(attachment.url, '_blank', 'noopener,noreferrer');
+}
+
+function openAttachmentImagePreview(attachments: Api.Session.Attachment[] | null | undefined, index: number) {
+  const list = attachments || [];
+  const imageIndex = list.slice(0, index + 1).filter(isImageAttachment).length - 1;
+  openImagePreview(list, imageIndex);
+}
+
+function attachmentLabel(attachment: { fileName?: string | null; mimeType?: string | null }) {
+  const fileName = String(attachment.fileName || '').toLowerCase();
+  const mimeType = String(attachment.mimeType || '').toLowerCase();
+  if (mimeType.includes('pdf') || fileName.endsWith('.pdf')) return 'PDF';
+  if (mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx')) return 'WORD';
+  if (mimeType.includes('sheet') || mimeType.includes('excel') || fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) return 'EXCEL';
+  if (mimeType.includes('csv') || fileName.endsWith('.csv')) return 'CSV';
+  if (mimeType.includes('markdown') || fileName.endsWith('.md')) return 'MD';
+  if (mimeType.includes('text') || fileName.endsWith('.txt')) return 'TXT';
+  return 'FILE';
 }
 
 const chatStore = useChatStore();
@@ -330,7 +375,39 @@ async function handleSourceFileClick(fileInfo: {
     <div v-else-if="msg.role === 'assistant'" class="mt-2 pl-12" @click="handleContentClick">
       <VueMarkdownIt :content="content" />
     </div>
-    <NText v-else-if="msg.role === 'user'" class="ml-12 mt-2 text-4">{{ content }}</NText>
+    <div v-else-if="msg.role === 'user'" class="ml-12 mt-2">
+      <NText v-if="content" class="text-4">{{ content }}</NText>
+      <div v-if="msg.attachments?.length" class="mt-3 flex flex-wrap gap-2">
+        <button
+          v-for="(attachment, index) in msg.attachments"
+          :key="`chat-img-${index}`"
+          type="button"
+          class="block"
+          @click="isImageAttachment(attachment) ? openAttachmentImagePreview(msg.attachments, index) : openAttachment(attachment)"
+        >
+          <template v-if="isImageAttachment(attachment)">
+            <img
+              :src="attachment.url || undefined"
+              :alt="attachment.fileName || 'image'"
+              class="h-120px w-120px rounded-8px object-cover shadow-sm"
+            />
+          </template>
+          <template v-else>
+            <div class="flex h-120px w-160px flex-col items-start justify-between rounded-8px border border-#e5e7eb bg-white p-3 text-left shadow-sm dark:border-#2f3742 dark:bg-#20242b">
+              <div class="rounded-6px bg-#f3f4f6 px-2 py-1 text-11px font-600 text-stone-600 dark:bg-#2a3038 dark:text-stone-200">
+                {{ attachmentLabel(attachment) }}
+              </div>
+              <div class="line-clamp-2 text-13px text-stone-700 dark:text-stone-100">
+                {{ attachment.fileName || '未命名附件' }}
+              </div>
+              <div class="text-11px text-stone-400">
+                {{ fileSize(Number(attachment.size || 0)) }}
+              </div>
+            </div>
+          </template>
+        </button>
+      </div>
+    </div>
     <NDivider class="ml-12 w-[calc(100%-3rem)] mb-0! mt-2!" />
     <div class="ml-12 flex gap-4">
       <NButton quaternary @click="handleCopy(msg.content)">
@@ -339,6 +416,11 @@ async function handleSourceFileClick(fileInfo: {
         </template>
       </NButton>
     </div>
+    <ChatImagePreviewModal
+      v-model:show="previewVisible"
+      :images="previewImages"
+      :start-index="previewIndex"
+    />
   </div>
 </template>
 

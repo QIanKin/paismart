@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -66,7 +67,7 @@ public class ProjectCreatorService {
         creatorRepo.findAllById(creatorIds).forEach(c -> creatorMap.put(c.getId(), c));
         List<RosterEntryView> out = new ArrayList<>(rows.size());
         for (ProjectCreator pc : rows) {
-            out.add(new RosterEntryView(pc, creatorMap.get(pc.getCreatorId())));
+            out.add(RosterEntryView.from(pc, creatorMap.get(pc.getCreatorId())));
         }
         return out;
     }
@@ -251,6 +252,88 @@ public class ProjectCreatorService {
         return pc;
     }
 
-    /** 给前端用的 flat view：把 creator 常用字段带出来，少一次 join 请求。 */
-    public record RosterEntryView(ProjectCreator entry, Creator creator) {}
+    /** 给前端用的 flat view：字段名与前端 Api.Project.RosterEntry 对齐。 */
+    public record RosterEntryView(
+            Long id,
+            Long projectId,
+            Long creatorId,
+            String ownerOrgTag,
+            ProjectCreator.Stage stage,
+            Integer priority,
+            BigDecimal quotedPrice,
+            String currency,
+            Long assignedToUserId,
+            String projectNotes,
+            String addedBy,
+            String customFields,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
+            CreatorView creator
+    ) {
+        static RosterEntryView from(ProjectCreator entry, Creator creator) {
+            return new RosterEntryView(
+                    entry.getId(),
+                    entry.getProjectId(),
+                    entry.getCreatorId(),
+                    entry.getOwnerOrgTag(),
+                    entry.getStage(),
+                    entry.getPriority(),
+                    entry.getQuotedPrice(),
+                    entry.getCurrency(),
+                    entry.getAssignedToUserId(),
+                    entry.getProjectNotes(),
+                    entry.getAddedBy(),
+                    entry.getCustomFieldsJson(),
+                    entry.getCreatedAt(),
+                    entry.getUpdatedAt(),
+                    CreatorView.from(creator)
+            );
+        }
+    }
+
+    /** Creator 的精简字段：字段名与前端 Api.Creator.Person 对齐。 */
+    public record CreatorView(
+            Long id,
+            String ownerOrgTag,
+            String displayName,
+            String realName,
+            String gender,
+            Integer birthYear,
+            String city,
+            String country,
+            String personaTags,
+            String trackTags,
+            String cooperationStatus,
+            Long internalOwnerId,
+            String internalNotes,
+            String priceNote,
+            String customFields,
+            String createdBy,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
+        static CreatorView from(Creator creator) {
+            if (creator == null) return null;
+            return new CreatorView(
+                    creator.getId(),
+                    creator.getOwnerOrgTag(),
+                    creator.getDisplayName(),
+                    creator.getRealName(),
+                    creator.getGender(),
+                    creator.getBirthYear(),
+                    creator.getCity(),
+                    creator.getCountry(),
+                    creator.getPersonaTagsJson(),
+                    creator.getTrackTagsJson(),
+                    creator.getCooperationStatus(),
+                    creator.getInternalOwnerId(),
+                    creator.getInternalNotes(),
+                    creator.getPriceNote(),
+                    creator.getCustomFieldsJson(),
+                    creator.getCreatedBy(),
+                    creator.getCreatedAt(),
+                    creator.getUpdatedAt()
+            );
+        }
+    }
 }

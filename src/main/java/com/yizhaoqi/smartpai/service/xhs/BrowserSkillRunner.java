@@ -30,20 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>和 {@link XhsSkillRunner} 的区别：
  * <ul>
- *   <li>XhsSkillRunner → python + Spider_XHS + 公司 XHS cookie 池</li>
- *   <li>BrowserSkillRunner → node + Playwright CDP + 业务员本机 Chrome</li>
- * </ul>
- *
- * <p>适用 skill：
- * <ul>
- *   <li>{@code xhs-outreach-comment} 批量评论外联</li>
- *   <li>{@code qiangua-brand-discover} 千瓜品牌达人发现</li>
- * </ul>
- *
- * <p>环境变量注入：
- * <ul>
- *   <li>{@code CDP_ENDPOINT}：Chrome 的 CDP WebSocket 地址（可被 RunRequest.extraEnv 覆盖）</li>
- *   <li>{@code NODE_PATH}：指向 {@code _shared/playwright-runtime/node_modules} 让 .mjs 能 import</li>
+ *   <li>XhsSkillRunner -> python + Spider_XHS + 公司 XHS cookie 池</li>
+ *   <li>BrowserSkillRunner -> node + Playwright + 服务器托管 profile 或外部 CDP</li>
  * </ul>
  */
 @Service
@@ -69,20 +57,16 @@ public class BrowserSkillRunner {
     }
 
     public RunResult run(RunRequest req) {
-        // 1. 解析 skill 路径
         Optional<LoadedSkill> skill = skillRegistry.find(req.skillName, req.orgTag);
         if (skill.isEmpty()) {
-            return RunResult.error("skill_not_found",
-                    "skill 未加载：" + req.skillName);
+            return RunResult.error("skill_not_found", "skill 未加载：" + req.skillName);
         }
         Path skillRoot = Paths.get(skill.get().rootPath()).toAbsolutePath();
         Path scriptPath = skillRoot.resolve(req.scriptRelative);
         if (!Files.isRegularFile(scriptPath)) {
-            return RunResult.error("script_not_found",
-                    "脚本不存在: " + scriptPath);
+            return RunResult.error("script_not_found", "脚本不存在: " + scriptPath);
         }
 
-        // 2. 沙箱子目录
         String subDir = "br-" + safeSession(req.sessionId) + "-" + LocalDateTime.now().format(TS);
         Path sandboxWork = Paths.get(skillProperties.getBash().getSandboxRoot())
                 .toAbsolutePath().resolve(subDir);
@@ -93,15 +77,22 @@ public class BrowserSkillRunner {
         }
         Path outPath = sandboxWork.resolve("out.json");
 
-        // 3. 组命令：node <abs script> <userArgs...> --output out.json
         StringBuilder cmd = new StringBuilder("node");
         cmd.append(' ').append(shellQuote(scriptPath.toString()));
         for (String arg : req.extraArgs) cmd.append(' ').append(shellQuote(arg));
         cmd.append(" --output ").append(shellQuote(outPath.toString()));
 
-        // 4. env：CDP_ENDPOINT + NODE_PATH + 可选 session/project meta
         Map<String, String> env = new HashMap<>();
-        env.put("CDP_ENDPOINT", browserProps.getCdpEndpoint());
+        env.put("SMARTPAI_BROWSER_MODE", browserProps.getMode());
+        env.put("SMARTPAI_BROWSER_PROFILE_ROOT", browserProps.getProfileRoot());
+        env.put("SMARTPAI_BROWSER_HEADLESS", String.valueOf(browserProps.isHeadless()));
+        env.put("SMARTPAI_BROWSER_NO_SANDBOX", String.valueOf(browserProps.isNoSandbox()));
+        if (browserProps.getExecutablePath() != null && !browserProps.getExecutablePath().isBlank()) {
+            env.put("CHROMIUM_EXECUTABLE", browserProps.getExecutablePath());
+        }
+        if (browserProps.getCdpEndpoint() != null && !browserProps.getCdpEndpoint().isBlank()) {
+            env.put("CDP_ENDPOINT", browserProps.getCdpEndpoint());
+        }
         env.put("NODE_PATH", browserProps.getNodeModulesPath());
         env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         if (req.sessionId != null) env.put("SMARTPAI_SESSION_ID", req.sessionId);
@@ -120,8 +111,6 @@ public class BrowserSkillRunner {
                 req.skillName, req.scriptRelative, cmd);
 
         BashExecutor.Result res = bashExecutor.run(bashReq);
-
-        // 5. 解析 out.json
         JsonNode payload = null;
         if (Files.isRegularFile(outPath)) {
             try {
@@ -131,7 +120,6 @@ public class BrowserSkillRunner {
             }
         }
 
-        // 6. 常见 CDP 错误归因
         String errorType = payload != null && payload.has("errorType")
                 ? payload.get("errorType").asText(null) : null;
         boolean payloadOk = payload != null && payload.path("ok").asBoolean(false);
@@ -167,8 +155,6 @@ public class BrowserSkillRunner {
         return new RunResult(true, payload, null, null, sandboxWork.toString(), res);
     }
 
-    // ---------- helpers ----------
-
     private String shellQuote(String s) {
         if (s == null) return "\"\"";
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
@@ -198,8 +184,6 @@ public class BrowserSkillRunner {
         if (s == null) return "";
         return s.length() <= max ? s : s.substring(0, max) + "...";
     }
-
-    // ---------- 传输对象 ----------
 
     public static final class RunRequest {
         public String orgTag;

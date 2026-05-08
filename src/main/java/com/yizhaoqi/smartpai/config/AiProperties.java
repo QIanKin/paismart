@@ -51,5 +51,27 @@ public class AiProperties {
         private java.util.List<String> enabledTools = java.util.List.of();
         /** 附加到 system prompt 末尾的企业专属行为契约（会覆盖默认 MCN 行为契约中冲突的条目） */
         private String behaviorContract;
+
+        /**
+         * 模型 context window 总大小（token）。用于推算 prompt 侧可用预算：
+         * {@code prompt 预算 = contextWindowTokens - generation.maxTokens - 1000(reserve)}。
+         * 默认 128k 适配 GPT-4o / DeepSeek / GLM-4.5 等主流模型；接 32k 模型时调小。
+         */
+        private int contextWindowTokens = 128_000;
+
+        /**
+         * 轮内 auto-compact 的触发阈值（已用预算占比）。本 turn 内一旦
+         * {@code ctx.usedTokens / totalBudget >= 此值}，或 ContextEngine 已经在丢弃层，
+         * Runtime 会同步触发 MemoryCompactor 一次再 re-assemble，不再"撑过这轮再说"。
+         * 取值过低会带来无谓的同步压缩延迟（每次约 1-3s），过高会逼近模型硬上限。
+         */
+        private double inTurnCompactUsageRatio = 0.92d;
+
+        /**
+         * 单条 tool 消息回灌给 LLM 的 token 上限。超过则截断成"前缀 + 折叠提示"。
+         * DB 中仍持久化完整 payload，前端可据 {@code tool_meta.truncated} 弹出"展开完整结果"。
+         * 防止 50KB 工具响应一次把上下文打满。
+         */
+        private int toolPayloadMaxTokens = 4000;
     }
 } 

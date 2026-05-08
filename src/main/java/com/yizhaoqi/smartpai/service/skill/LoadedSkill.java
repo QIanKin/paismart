@@ -28,14 +28,19 @@ public record LoadedSkill(
 ) {
     public Map<String, Object> toManifest() {
         Map<String, Object> m = new LinkedHashMap<>();
+        // id / rootPath 给前端能力中心做"编辑跳转 / 启用切换"用，BUILTIN 不允许编辑由 controller 校验
+        m.put("id", id);
         m.put("name", name);
         m.put("description", description);
         m.put("version", version == null ? "-" : version);
+        m.put("homepage", homepage);
         m.put("scripts", scripts);
         m.put("requiredBins", requiredBins);
         m.put("ownerOrgTag", ownerOrgTag);
         m.put("source", source == null ? null : source.name());
         m.put("enabled", enabled);
+        m.put("rootPath", rootPath);
+        m.put("bodyHash", bodyHash);
         return m;
     }
 

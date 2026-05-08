@@ -10,9 +10,12 @@ import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorato
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.service.ChatHandler;
+import com.yizhaoqi.smartpai.service.agent.AgentRequest;
 import com.yizhaoqi.smartpai.service.agent.AgentMessageDispatcher;
 import com.yizhaoqi.smartpai.utils.JwtUtils;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -31,9 +34,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private final ChatHandler chatHandler;
     private final AgentMessageDispatcher agentDispatcher;
     // 存放"加锁后的"会话，所有写操作统一走它，避免 chat-monitor 线程和 http-nio 线程同时写 session
+    // key = WebSocketSession.getId()；不能按 userId 存，否则多标签会互相覆盖。
     private final ConcurrentHashMap<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
-    // userId → 原生 session，用于需要读 uri / 关闭连接等场景
-    private final ConcurrentHashMap<String, WebSocketSession> rawSessions = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final JwtUtils jwtUtils;
     
@@ -74,8 +76,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         // 并发 sendMessage 不会再触发 Tomcat 的 TEXT_PARTIAL_WRITING 状态机异常。
         WebSocketSession wrapped = new ConcurrentWebSocketSessionDecorator(
                 session, SEND_TIME_LIMIT_MS, SEND_BUFFER_SIZE_LIMIT);
-        sessions.put(userId, wrapped);
-        rawSessions.put(userId, session);
+        sessions.put(session.getId(), wrapped);
         logger.info("WebSocket连接已建立，用户ID: {}，会话ID: {}，URI路径: {}",
                 userId, session.getId(), session.getUri().getPath());
 
@@ -98,7 +99,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         String userId = extractUserId(extractToken(session));
         // 永远用 wrapped session 做写操作，防止并发写同一条 WebSocket
-        WebSocketSession out = sessions.getOrDefault(userId, session);
+        WebSocketSession out = sessions.getOrDefault(session.getId(), session);
         try {
             String payload = message.getPayload();
 
@@ -128,10 +129,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     
                     // JSON 消息里 type=chat 的 payload.content 作为用户消息内容；
                     // 支持可选的 sessionId / projectId（Phase 2 多会话多项目支持）
-                    if ("chat".equals(messageType) && jsonMessage.get("content") instanceof String content) {
+                    if ("chat".equals(messageType)) {
+                        String content = jsonMessage.get("content") == null ? "" : String.valueOf(jsonMessage.get("content"));
                         String sId = jsonMessage.get("sessionId") == null ? null : String.valueOf(jsonMessage.get("sessionId"));
                         String pId = jsonMessage.get("projectId") == null ? null : String.valueOf(jsonMessage.get("projectId"));
-                        agentDispatcher.dispatch(userId, content, sId, pId, out);
+                        List<AgentRequest.Attachment> attachments = parseAttachments(jsonMessage.get("attachments"));
+                        if ((content == null || content.isBlank()) && attachments.isEmpty()) {
+                            sendErrorMessage(out, "消息不能为空");
+                            return;
+                        }
+                        agentDispatcher.dispatch(userId, content, sId, pId, attachments, out);
                         return;
                     }
                     
@@ -156,8 +163,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         String userId = "unknown";
         try {
             userId = extractUserId(extractToken(session));
-            sessions.remove(userId);
-            rawSessions.remove(userId);
+            sessions.remove(session.getId());
         } catch (Exception e) {
             logger.debug("关闭连接时无法解析用户信息，会话ID: {}", session.getId());
         }
@@ -208,5 +214,36 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
      */
     public static String getInternalCmdToken() {
         return INTERNAL_CMD_TOKEN;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<AgentRequest.Attachment> parseAttachments(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<AgentRequest.Attachment> attachments = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) continue;
+            String objectKey = map.get("objectKey") == null ? null : String.valueOf(map.get("objectKey"));
+            if (objectKey == null || objectKey.isBlank()) continue;
+            attachments.add(new AgentRequest.Attachment(
+                    map.get("type") == null ? "image" : String.valueOf(map.get("type")),
+                    objectKey,
+                    map.get("fileName") == null ? null : String.valueOf(map.get("fileName")),
+                    map.get("mimeType") == null ? null : String.valueOf(map.get("mimeType")),
+                    toLong(map.get("size"))
+            ));
+        }
+        return attachments;
+    }
+
+    private Long toLong(Object raw) {
+        if (raw == null) return null;
+        if (raw instanceof Number number) return number.longValue();
+        try {
+            return Long.parseLong(String.valueOf(raw));
+        } catch (Exception e) {
+            return null;
+        }
     }
 } 

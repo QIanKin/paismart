@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
- * 数据源中心 —— 统一管理三个平台的"抓取凭证"：
+ * 数据源中心 —— 当前架构下只剩两类数据源凭证：
  *
- *  1. 小红书 · 网页 Cookie（Spider_XHS 通道）         → 平台值 xhs_pc / xhs_creator / xhs_pgy / xhs_qianfan
- *  2. 小红书 · 聚光 MarketingAPI（官方广告数据）       → 平台值 xhs_spotlight（OAuth2 access_token）
- *  3. 小红书 · 竞品笔记监控（xhsCompetitorNote 接入）   → 平台值 xhs_competitor（站点 URL + key）
+ *  1. 蒲公英 (PGY) · Cookie 池（仅 platform=xhs_pgy） → 用于 KOL 列表 / 粉丝画像 / 报价等品牌侧能力
+ *  2. 聚光 (Spotlight) · MarketingAPI OAuth         → 关键词推荐、人群预估、计划/单元/报表
+ *  3. TikHub · 公开数据通道                          → 用户搜索 / 用户笔记 / 笔记详情 / 视频无水印 / 评论 / 热搜热榜
  *
- * 三者共用后端 `/api/v1/admin/xhs-cookies`（凭证统一存加密表），区别在于 platform 值和前端表单。
+ * 老的 Spider_XHS Cookie（xhs_pc / xhs_creator / xhs_qianfan）、千瓜接口、竞品笔记监控、
+ * 浏览器自动化抓取已统一下线，公开数据全部走 TikHub。
  *
  * 该页面仅 ADMIN 可见（由 router meta.roles 控制）。
  */
@@ -16,11 +17,11 @@ import SvgIcon from '@/components/custom/svg-icon.vue';
 import { fetchXhsCookieList } from '@/service/api';
 import XhsWebPanel from './modules/xhs-web-panel.vue';
 import XhsSpotlightPanel from './modules/xhs-spotlight-panel.vue';
-import XhsCompetitorPanel from './modules/xhs-competitor-panel.vue';
+import XhsTikhubPanel from './modules/xhs-tikhub-panel.vue';
 
 defineOptions({ name: 'DataSources' });
 
-const activeTab = ref<Api.Xhs.DataSourceFamily>('xhs_web');
+const activeTab = ref<'xhs_pgy' | 'xhs_spotlight' | 'xhs_tikhub'>('xhs_tikhub');
 
 const items = ref<Api.Xhs.Cookie[]>([]);
 const insecureDefault = ref(false);
@@ -41,27 +42,30 @@ async function reload() {
 
 onMounted(reload);
 
+type Family = 'xhs_pgy' | 'xhs_spotlight' | 'xhs_tikhub';
+
 const countBy = computed(() => {
-  const map: Record<Api.Xhs.DataSourceFamily, { total: number; active: number }> = {
-    xhs_web: { total: 0, active: 0 },
+  const map: Record<Family, { total: number; active: number }> = {
+    xhs_pgy: { total: 0, active: 0 },
     xhs_spotlight: { total: 0, active: 0 },
-    xhs_competitor: { total: 0, active: 0 }
+    xhs_tikhub: { total: 1, active: 1 }
   };
   for (const it of items.value) {
     const fam = familyOf(it.platform);
+    if (fam === null) continue;
     map[fam].total += 1;
     if (it.status === 'ACTIVE') map[fam].active += 1;
   }
   return map;
 });
 
-function familyOf(platform: Api.Xhs.Platform): Api.Xhs.DataSourceFamily {
+function familyOf(platform: Api.Xhs.Platform): Family | null {
   if (platform === 'xhs_spotlight') return 'xhs_spotlight';
-  if (platform === 'xhs_competitor') return 'xhs_competitor';
-  return 'xhs_web';
+  if (platform === 'xhs_pgy') return 'xhs_pgy';
+  return null;
 }
 
-function tabLabel(fam: Api.Xhs.DataSourceFamily, label: string) {
+function tabLabel(fam: Family, label: string) {
   const c = countBy.value[fam];
   return () =>
     h('span', { class: 'inline-flex items-center gap-1' }, [
@@ -130,14 +134,14 @@ function tabLabel(fam: Api.Xhs.DataSourceFamily, label: string) {
         class="h-full"
         pane-class="h-full"
       >
-        <NTabPane name="xhs_web" :tab="tabLabel('xhs_web', '小红书 · 网页 Cookie')" display-directive="show">
-          <XhsWebPanel :items="items.filter(i => familyOf(i.platform) === 'xhs_web')" @changed="reload" />
+        <NTabPane name="xhs_tikhub" :tab="tabLabel('xhs_tikhub', 'TikHub · 公开数据')" display-directive="show">
+          <XhsTikhubPanel />
         </NTabPane>
-        <NTabPane name="xhs_spotlight" :tab="tabLabel('xhs_spotlight', '聚光广告 OAuth')" display-directive="if">
+        <NTabPane name="xhs_pgy" :tab="tabLabel('xhs_pgy', '蒲公英 · Cookie')" display-directive="if">
+          <XhsWebPanel :items="items.filter(i => i.platform === 'xhs_pgy')" @changed="reload" />
+        </NTabPane>
+        <NTabPane name="xhs_spotlight" :tab="tabLabel('xhs_spotlight', '聚光 · MarketingAPI')" display-directive="if">
           <XhsSpotlightPanel :items="items.filter(i => i.platform === 'xhs_spotlight')" @changed="reload" />
-        </NTabPane>
-        <NTabPane name="xhs_competitor" :tab="tabLabel('xhs_competitor', '竞品笔记监控')" display-directive="if">
-          <XhsCompetitorPanel :items="items.filter(i => i.platform === 'xhs_competitor')" @changed="reload" />
         </NTabPane>
       </NTabs>
     </NCard>

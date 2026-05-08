@@ -2,58 +2,44 @@ package com.yizhaoqi.smartpai.service.tool.builtin;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yizhaoqi.smartpai.model.xhs.XhsLoginSession;
-import com.yizhaoqi.smartpai.service.tool.PermissionResult;
 import com.yizhaoqi.smartpai.service.tool.Tool;
 import com.yizhaoqi.smartpai.service.tool.ToolContext;
 import com.yizhaoqi.smartpai.service.tool.ToolInputSchemas;
-import com.yizhaoqi.smartpai.service.tool.ToolErrors;
 import com.yizhaoqi.smartpai.service.tool.ToolResult;
 import com.yizhaoqi.smartpai.service.xhs.XhsLoginSessionService;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * {@code xhs_qr_login_start}：触发一次小红书扫码登录会话，让前端开始订阅二维码流。
+ * xhs_qr_login_start：当 Agent 发现 PGY cookie 全部失效时，启动一个扫码登录会话，
+ * 把 sessionId 抛回给前端 / 用户，让用户点开数据源中心→扫码登录采集那个按钮 完成扫码。
  *
- * <p>内部包装 {@link XhsLoginSessionService#start}：
- * <ul>
- *   <li>在数据库落一条 PENDING 的 {@link XhsLoginSession}，返回 sessionId</li>
- *   <li>同时拉起 node 子进程跑扫码脚本，不阻塞——二维码稍后通过 WS 推给前端</li>
- *   <li>扫码成功后会自动把捕获到的多平台 cookie 批量 upsert 回 cookie 池</li>
- * </ul>
- *
- * <p>返回 sessionId 后 agent 可以：
+ * <p>注意：本工具自己不会扫二维码（LLM 没有手机）。它的作用是：
  * <ol>
- *   <li>把 sessionId 回复给用户，让用户在前端 /data-sources 页面订阅这条会话</li>
- *   <li>后续若需要自检进度，用 xhs_cookie_list / xhs_cookie_ping 判断新记录是否落库</li>
+ *   <li>在后端 DB 落一条 PENDING session、拉起 Chromium 子进程开始采二维码；</li>
+ *   <li>把 {@code sessionId} 和 WebSocket 订阅地址告诉用户，让用户去前端扫；</li>
+ *   <li>同时让 Agent 知道凭证流转已经启动，可以告诉用户"我已经帮你打开扫码会话了"。</li>
  * </ol>
  *
- * <p>权限：所有登录用户可用。属于破坏性（会启动子进程 + 未来会写入 cookie 池），走二次确认。
+ * <p>更推荐的做法：让 Agent 调 {@code xhs_cookie_list} 看一下 cookie 池状态后，
+ * 直接给用户"请去数据源中心→蒲公英 tab 扫码登录"的提示，不一定非要主动起 session。
  */
 @Component
 public class XhsQrLoginStartTool implements Tool {
 
-    private static final List<String> ALL_PLATFORMS = List.of(
-            "xhs_pc", "xhs_creator", "xhs_pgy", "xhs_qianfan");
+    private static final String DEFAULT_PLATFORM = "xhs_pgy";
 
     private final XhsLoginSessionService loginService;
     private final JsonNode schema;
 
     public XhsQrLoginStartTool(XhsLoginSessionService loginService) {
         this.loginService = loginService;
-        var itemSchema = ToolInputSchemas.mapper().createObjectNode();
-        itemSchema.put("type", "string");
-        itemSchema.putArray("enum")
-                .add("xhs_pc").add("xhs_creator").add("xhs_pgy").add("xhs_qianfan");
         this.schema = ToolInputSchemas.object()
-                .arrayProp("platforms",
-                        "要一次性采集的平台列表。留空 = 跟 application.yml 的 default-platforms。"
-                                + "常规 MCN 场景建议全部 4 个都采。",
-                        itemSchema,
+                .stringProp("note",
+                        "可选：扫码理由，例如 '蒲公英 cookie 失效，请扫码补一条'，会展示给用户",
                         false)
                 .additionalProperties(false)
                 .build();
@@ -62,59 +48,40 @@ public class XhsQrLoginStartTool implements Tool {
     @Override public String name() { return "xhs_qr_login_start"; }
 
     @Override public String description() {
-        return "触发一次小红书扫码登录会话，返回 sessionId 和过期时间；扫码采到的 cookie 会自动入 cookie 池。"
-                + "适合 agent 发现 xhs_pc/creator/pgy/qianfan 全部 EXPIRED、但 spotlight 还在（或反之）时"
-                + "自动提示用户扫码续命。所有登录用户可用，破坏性操作会要求二次确认。";
+        return "启动一次蒲公英扫码登录会话，返回 sessionId 让前端订阅二维码。"
+                + "调用本工具不代表 AI 真的会扫码——LLM 没有手机，必须由用户在数据源中心点 \"扫码登录采集\" 按钮 / 用手机扫二维码。"
+                + "适合场景：xhs_cookie_list 显示 ACTIVE=0 时，让用户尽快去扫码。";
     }
 
     @Override public JsonNode inputSchema() { return schema; }
-
     @Override public boolean isReadOnly(JsonNode input) { return false; }
-
-    @Override public boolean isDestructive(JsonNode input) { return true; }
-
-    @Override
-    public PermissionResult checkPermission(ToolContext ctx, JsonNode input) {
-        // Agent godmode：扫码登录不再限 admin。破坏性二次确认仍然保留（见 requiresConfirmation）。
-        if (ctx.orgTag() == null || ctx.orgTag().isBlank()) {
-            return PermissionResult.deny("缺少 orgTag，无法定位当前组织");
-        }
-        if (ctx.userId() == null || ctx.userId().isBlank()) {
-            return PermissionResult.deny("缺少 userId，无法做 single-flight 去重");
-        }
-        return PermissionResult.allow();
-    }
+    @Override public boolean isConcurrencySafe(JsonNode input) { return false; }
 
     @Override
     public ToolResult call(ToolContext ctx, JsonNode input) {
-        List<String> platforms = new ArrayList<>();
-        if (input.has("platforms") && input.get("platforms").isArray()) {
-            for (JsonNode n : input.get("platforms")) {
-                String p = n.asText("");
-                if (!p.isBlank() && ALL_PLATFORMS.contains(p)) platforms.add(p);
-            }
+        String userId = ctx.userId();
+        if (userId == null || userId.isBlank()) {
+            return ToolResult.error("missing_user", "无法从会话上下文取到 userId，无法启动扫码会话");
         }
 
-        XhsLoginSession s;
+        XhsLoginSession session;
         try {
-            s = loginService.start(ctx.orgTag(), ctx.userId(), platforms.isEmpty() ? null : platforms);
-        } catch (IllegalArgumentException e) {
-            return ToolResult.error(ToolErrors.BAD_REQUEST, "启动扫码登录失败：" + e.getMessage());
+            session = loginService.start(ctx.orgTag(), userId, List.of(DEFAULT_PLATFORM));
         } catch (Exception e) {
-            return ToolResult.error(ToolErrors.INTERNAL,
-                    "启动扫码登录时出现未预期错误：" + e.getClass().getSimpleName() + "：" + e.getMessage());
+            return ToolResult.error("start_failed", "扫码会话启动失败: " + e.getMessage());
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("sessionId", s.getSessionId());
-        data.put("status", s.getStatus() == null ? null : s.getStatus().name());
-        data.put("platforms", s.getPlatforms());
-        data.put("startedAt", s.getStartedAt() == null ? null : s.getStartedAt().toString());
-        data.put("expiresAt", s.getExpiresAt() == null ? null : s.getExpiresAt().toString());
-        data.put("wsHint", "前端可以订阅 ws://<host>/api/v1/xhs/login/ws?sessionId=" + s.getSessionId()
-                + " 来拿二维码 dataUrl、状态变化和最终 success 事件");
-        String summary = String.format("xhs_qr_login_start → session=%s status=%s platforms=%s",
-                s.getSessionId(), s.getStatus(), s.getPlatforms());
+        data.put("sessionId", session.getSessionId());
+        data.put("platforms", List.of(DEFAULT_PLATFORM));
+        data.put("status", session.getStatus() == null ? null : session.getStatus().name());
+        data.put("expiresAt", session.getExpiresAt());
+        data.put("frontendHint", "请打开「数据源中心 → 蒲公英 · Cookie → 扫码登录采集」并用手机扫码完成");
+
+        String userNote = input.path("note").asText("");
+        String summary = userNote.isBlank()
+                ? "已启动扫码会话 " + session.getSessionId() + "，请用户在前端扫码"
+                : userNote + "（扫码会话已启动，sessionId=" + session.getSessionId() + "）";
         return ToolResult.of(data, summary);
     }
 }

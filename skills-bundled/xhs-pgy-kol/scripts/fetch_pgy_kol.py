@@ -174,7 +174,7 @@ def run(args: argparse.Namespace) -> int:
         # 复用官方 get_user_by_page 的鉴权链路，但自己接管请求 body：
         # 1) 拿 brandUserId
         self_info = api.get_self_info(cookies)
-        brand_user_id = self_info["data"]["userId"]
+        brand_user_id = api._extract_brand_user_id(self_info)
         # 2) 拼 body 并覆盖分页 & 过滤
         body = get_pugongying_bozhu_data(page, brand_user_id, args.content_tag)
         body["pageSize"] = page_size
@@ -208,6 +208,15 @@ def run(args: argparse.Namespace) -> int:
         data = res_json.get("data") or {}
         user_list = data.get("kols") or []
         total = data.get("total") or len(user_list)
+    except KeyError as e:
+        _write(out_path, {
+            "ok": False,
+            "error": f"蒲公英账号信息缺少关键字段: {e}",
+            "errorType": "api_changed",
+            "selfInfo": self_info if isinstance(self_info, dict) else None,
+            "traceback": traceback.format_exc(),
+        })
+        return 4
     except Exception as e:
         low = str(e).lower()
         kind = "cookie_invalid" if ("login" in low or "401" in low or "cookie" in low) else "unknown"

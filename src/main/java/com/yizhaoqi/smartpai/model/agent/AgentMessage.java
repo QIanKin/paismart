@@ -75,6 +75,16 @@ public class AgentMessage {
     @Column(name = "tool_duration_ms")
     private Long toolDurationMs;
 
+    /**
+     * role=tool 时把 {@link com.yizhaoqi.smartpai.service.tool.ToolResult#meta()} 一并落库的 JSON 字符串。
+     * <p>背景：旧实现里 {@code ToolExecutor.resultToLlmPayload} 仅序列化 {@code data}，富 UI 用的 meta
+     * （视频 URL / transcript URL / noteId 等）只在 WS 实时推一次。一旦用户离开聊天页面再回来读历史，
+     * 富卡片就会消失。Bug-fix：所有 role=tool 行写入时把 meta 也持久化到这里。
+     */
+    @Lob
+    @Column(name = "tool_meta", columnDefinition = "MEDIUMTEXT")
+    private String toolMetaJson;
+
     /** 是否被压缩器归档（归档后不再直接拉出作为 prompt context） */
     @Column(name = "compacted", nullable = false)
     private Boolean compacted = false;

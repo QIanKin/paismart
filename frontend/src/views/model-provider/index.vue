@@ -96,6 +96,7 @@ async function testModelProvider(scopeKey: 'llm' | 'embedding', provider: Api.Ad
       apiBaseUrl: provider.apiBaseUrl,
       model: provider.model,
       apiKey: provider.apiKeyInput?.trim() || '',
+      apiStyle: provider.apiStyle,
       dimension: scopeKey === 'embedding' ? provider.dimension : null
     }
   });

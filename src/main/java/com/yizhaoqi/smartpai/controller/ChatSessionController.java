@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.model.User;
 import com.yizhaoqi.smartpai.model.agent.AgentMessage;
 import com.yizhaoqi.smartpai.model.agent.ChatSession;
+import com.yizhaoqi.smartpai.service.agent.AgentLiveSnapshotService;
+import com.yizhaoqi.smartpai.service.agent.AgentMessageContentService;
 import com.yizhaoqi.smartpai.service.agent.AgentUserResolver;
 import com.yizhaoqi.smartpai.service.agent.ChatSessionService;
 import com.yizhaoqi.smartpai.service.agent.memory.MessageStore;
@@ -37,17 +39,23 @@ public class ChatSessionController {
     private final AgentUserResolver userResolver;
     private final JwtUtils jwtUtils;
     private final ObjectMapper mapper;
+    private final AgentMessageContentService contentService;
+    private final AgentLiveSnapshotService liveSnapshotService;
 
     public ChatSessionController(ChatSessionService sessionService,
                                  MessageStore messageStore,
                                  AgentUserResolver userResolver,
                                  JwtUtils jwtUtils,
-                                 ObjectMapper mapper) {
+                                 ObjectMapper mapper,
+                                 AgentMessageContentService contentService,
+                                 AgentLiveSnapshotService liveSnapshotService) {
         this.sessionService = sessionService;
         this.messageStore = messageStore;
         this.userResolver = userResolver;
         this.jwtUtils = jwtUtils;
         this.mapper = mapper;
+        this.contentService = contentService;
+        this.liveSnapshotService = liveSnapshotService;
     }
 
     @GetMapping
@@ -110,7 +118,23 @@ public class ChatSessionController {
         User user = resolveUser(auth);
         sessionService.getOwned(id, user.getId()); // 权限校验
         List<AgentMessage> all = messageStore.readAll(id);
-        return ok(all);
+        return ok(all.stream().map(this::toHistoryView).toList());
+    }
+
+    /**
+     * 拉当前会话「正在进行中」的 turn 快照（partial assistant + 进行中 toolCalls + step / todos / askUser）。
+     * <p>设计：runTurn 期间事件流量从 {@link com.yizhaoqi.smartpai.service.agent.AgentEventPublisher}
+     * 同步累积进 Redis；前端在 {@code /messages} 之后再调本接口，把进行中的内容拼到列表尾，
+     * 然后通过既有 WS 长连接继续接 chunk —— 实现"切走再回来也能看到正在生成的内容"。
+     * <p>当无活跃 turn（已 completion / 从未开始）时返回 {@code data: null}。
+     */
+    @GetMapping("/{id}/live")
+    public ResponseEntity<?> liveSnapshot(@RequestHeader("Authorization") String auth,
+                                          @PathVariable Long id) {
+        User user = resolveUser(auth);
+        sessionService.getOwned(id, user.getId());
+        AgentLiveSnapshotService.LiveSnapshot snap = liveSnapshotService.read(id);
+        return ok(snap);
     }
 
     @PutMapping("/{id}")
@@ -138,7 +162,13 @@ public class ChatSessionController {
     }
 
     private ResponseEntity<?> ok(Object data) {
-        return ResponseEntity.ok(Map.of("code", 200, "message", "ok", "data", data));
+        // Map.of(...) 不允许 null value——/live 当无活跃 turn 时 data=null，会触发 NPE，
+        // 所以这里手动塞一个允许 null 的 LinkedHashMap。
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("code", 200);
+        body.put("message", "ok");
+        body.put("data", data);
+        return ResponseEntity.ok(body);
     }
 
     private String asString(Object v) { return v == null ? null : String.valueOf(v); }
@@ -147,5 +177,32 @@ public class ChatSessionController {
         if (v == null) return null;
         if (v instanceof Number n) return n.longValue();
         try { return Long.parseLong(String.valueOf(v)); } catch (Exception e) { return null; }
+    }
+
+    private Map<String, Object> toHistoryView(AgentMessage message) {
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("id", message.getId());
+        out.put("sessionId", message.getSessionId());
+        out.put("seq", message.getSeq());
+        out.put("messageGroupId", message.getMessageGroupId());
+        out.put("role", message.getRole().name());
+        out.put("createdAt", message.getCreatedAt());
+
+        if (message.getRole() != AgentMessage.Role.user) {
+            out.put("content", message.getContent());
+            out.put("toolCallsJson", message.getToolCallsJson());
+            out.put("toolCallId", message.getToolCallId());
+            out.put("toolName", message.getToolName());
+            out.put("toolDurationMs", message.getToolDurationMs());
+            // 把 ToolResult.meta() 持久化的 JSON 字符串透给前端，让历史回放能拿回 videoUrl /
+            // transcriptUrl 等富 UI 字段（与 Bug-fix「视频卡片刷新后消失」对齐）。
+            out.put("toolMetaJson", message.getToolMetaJson());
+            return out;
+        }
+
+        AgentMessageContentService.HistoryUserContent decoded = contentService.toHistoryUserContent(message.getContent());
+        out.put("content", decoded.text());
+        out.put("attachments", decoded.attachments());
+        return out;
     }
 }

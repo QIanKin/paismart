@@ -61,20 +61,21 @@ public class ProjectRosterListTool implements Tool {
         List<Map<String, Object>> items = new ArrayList<>(roster.size());
         for (ProjectCreatorService.RosterEntryView v : roster) {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("rosterId", v.entry().getId());
-            m.put("projectId", v.entry().getProjectId());
-            m.put("creatorId", v.entry().getCreatorId());
-            m.put("stage", v.entry().getStage() == null ? null : v.entry().getStage().name());
-            m.put("priority", v.entry().getPriority());
-            m.put("quotedPrice", v.entry().getQuotedPrice());
-            m.put("currency", v.entry().getCurrency());
-            m.put("projectNotes", v.entry().getProjectNotes());
-            if (v.creator() != null) {
-                m.put("creatorDisplayName", v.creator().getDisplayName());
-                m.put("personaTags", v.creator().getPersonaTagsJson());
-                m.put("trackTags", v.creator().getTrackTagsJson());
-                m.put("priceNote", v.creator().getPriceNote());
-                m.put("cooperationStatus", v.creator().getCooperationStatus());
+            m.put("rosterId", v.id());
+            m.put("projectId", v.projectId());
+            m.put("creatorId", v.creatorId());
+            m.put("stage", v.stage() == null ? null : v.stage().name());
+            m.put("priority", v.priority());
+            m.put("quotedPrice", v.quotedPrice());
+            m.put("currency", v.currency());
+            m.put("projectNotes", v.projectNotes());
+            ProjectCreatorService.CreatorView c = v.creator();
+            if (c != null) {
+                m.put("creatorDisplayName", c.displayName());
+                m.put("personaTags", c.personaTags());
+                m.put("trackTags", c.trackTags());
+                m.put("priceNote", c.priceNote());
+                m.put("cooperationStatus", c.cooperationStatus());
             }
             items.add(m);
         }

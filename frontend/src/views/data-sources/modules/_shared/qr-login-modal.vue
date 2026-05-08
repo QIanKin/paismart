@@ -32,12 +32,13 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 
-const PLATFORM_LABELS: Record<Api.Xhs.Platform, string> = {
+const PLATFORM_LABELS: Record<string, string> = {
+  xhs_pgy: '蒲公英',
+  xhs_spotlight: '聚光',
+  // 历史值兼容显示，但当前主流程只采 xhs_pgy。
   xhs_pc: '小红书 PC',
   xhs_creator: '创作者中心',
-  xhs_pgy: '蒲公英',
   xhs_qianfan: '千帆',
-  xhs_spotlight: '聚光',
   xhs_competitor: '竞品'
 };
 
@@ -52,8 +53,8 @@ const STATUS_LABELS: Record<Api.Xhs.LoginStatus, { text: string; type: 'default'
   CANCELLED: { text: '已取消', type: 'warning' }
 };
 
-/** 后端默认采的四个平台——和 XhsLoginProperties.defaultPlatforms 保持一致。 */
-const PLATFORMS: Api.Xhs.Platform[] = ['xhs_pc', 'xhs_creator', 'xhs_pgy', 'xhs_qianfan'];
+/** 当前架构下只采蒲公英 cookie；其他 xhs_* 平台已下线。 */
+const PLATFORMS: Api.Xhs.Platform[] = ['xhs_pgy'];
 
 const sessionId = ref<string | null>(null);
 const status = ref<Api.Xhs.LoginStatus>('PENDING');

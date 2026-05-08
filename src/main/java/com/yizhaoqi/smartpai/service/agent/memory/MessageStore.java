@@ -3,6 +3,7 @@ package com.yizhaoqi.smartpai.service.agent.memory;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.model.agent.AgentMessage;
+import com.yizhaoqi.smartpai.service.agent.AgentMessageContentService;
 import com.yizhaoqi.smartpai.model.agent.ChatSession;
 import com.yizhaoqi.smartpai.repository.agent.AgentMessageRepository;
 import com.yizhaoqi.smartpai.repository.agent.ChatSessionRepository;
@@ -44,15 +45,18 @@ public class MessageStore {
     private final AgentMessageRepository messageRepository;
     private final RedisTemplate<String, String> redis;
     private final ObjectMapper mapper;
+    private final AgentMessageContentService contentService;
 
     public MessageStore(ChatSessionRepository sessionRepository,
                         AgentMessageRepository messageRepository,
                         RedisTemplate<String, String> redis,
-                        ObjectMapper mapper) {
+                        ObjectMapper mapper,
+                        AgentMessageContentService contentService) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.redis = redis;
         this.mapper = mapper;
+        this.contentService = contentService;
     }
 
     // --------------------- 读 ---------------------
@@ -106,6 +110,7 @@ public class MessageStore {
             msg.setToolCallId(nm.toolCallId);
             msg.setToolName(nm.toolName);
             msg.setToolDurationMs(nm.toolDurationMs);
+            msg.setToolMetaJson(nm.toolMetaJson);
             msg.setCompacted(false);
             msg.setTokenEstimate(nm.tokenEstimate);
             persisted.add(messageRepository.save(msg));
@@ -174,16 +179,19 @@ public class MessageStore {
             String toolCallId,
             String toolName,
             Long toolDurationMs,
+            String toolMetaJson,
             Integer tokenEstimate
     ) {
         public static NewMessage user(String content, int tokenEstimate) {
-            return new NewMessage(AgentMessage.Role.user, content, null, null, null, null, tokenEstimate);
+            return new NewMessage(AgentMessage.Role.user, content, null, null, null, null, null, tokenEstimate);
         }
         public static NewMessage assistant(String content, String toolCallsJson, int tokenEstimate) {
-            return new NewMessage(AgentMessage.Role.assistant, content, toolCallsJson, null, null, null, tokenEstimate);
+            return new NewMessage(AgentMessage.Role.assistant, content, toolCallsJson, null, null, null, null, tokenEstimate);
         }
-        public static NewMessage tool(String toolCallId, String toolName, String content, long durationMs, int tokenEstimate) {
-            return new NewMessage(AgentMessage.Role.tool, content, null, toolCallId, toolName, durationMs, tokenEstimate);
+        public static NewMessage tool(String toolCallId, String toolName, String content,
+                                      long durationMs, String toolMetaJson, int tokenEstimate) {
+            return new NewMessage(AgentMessage.Role.tool, content, null, toolCallId, toolName,
+                    durationMs, toolMetaJson, tokenEstimate);
         }
     }
 
@@ -195,7 +203,13 @@ public class MessageStore {
     public Map<String, Object> toOpenAiMessage(AgentMessage m) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("role", m.getRole().name());
-        if (m.getContent() != null) out.put("content", m.getContent());
+        if (m.getContent() != null) {
+            if (m.getRole() == AgentMessage.Role.user) {
+                out.put("content", contentService.toOpenAiUserContent(m.getContent()));
+            } else {
+                out.put("content", m.getContent());
+            }
+        }
         if (m.getRole() == AgentMessage.Role.tool) {
             out.put("tool_call_id", m.getToolCallId());
         }

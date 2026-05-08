@@ -1,6 +1,7 @@
 package com.yizhaoqi.smartpai.service.tool.builtin;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.yizhaoqi.smartpai.config.SkillProperties;
 import com.yizhaoqi.smartpai.service.skill.LoadedSkill;
 import com.yizhaoqi.smartpai.service.skill.SkillRegistry;
 import com.yizhaoqi.smartpai.service.tool.Tool;
@@ -24,10 +25,12 @@ import java.util.Map;
 public class UseSkillTool implements Tool {
 
     private final SkillRegistry registry;
+    private final SkillProperties properties;
     private final JsonNode schema;
 
-    public UseSkillTool(SkillRegistry registry) {
+    public UseSkillTool(SkillRegistry registry, SkillProperties properties) {
         this.registry = registry;
+        this.properties = properties;
         this.schema = ToolInputSchemas.object()
                 .stringProp("name", "skill 名（见 list_skills 返回）", true)
                 .additionalProperties(false)
@@ -42,6 +45,9 @@ public class UseSkillTool implements Tool {
 
     @Override
     public ToolResult call(ToolContext ctx, JsonNode input) {
+        if (!properties.isEnabled()) {
+            return ToolResult.error("skills_disabled", "skill 子系统未启用，请检查 skills.enabled 配置");
+        }
         String name = input.path("name").asText(null);
         if (name == null || name.isBlank()) return ToolResult.error("name 不能为空");
 

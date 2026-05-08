@@ -1,7 +1,7 @@
 package com.yizhaoqi.smartpai.service.agent.context.provider;
 
 import com.yizhaoqi.smartpai.model.agent.MemoryItem;
-import com.yizhaoqi.smartpai.service.UsageQuotaService;
+import com.yizhaoqi.smartpai.service.agent.TokenCounter;
 import com.yizhaoqi.smartpai.service.agent.context.ContextContribution;
 import com.yizhaoqi.smartpai.service.agent.context.ContextProvider;
 import com.yizhaoqi.smartpai.service.agent.context.ContextRequest;
@@ -24,11 +24,11 @@ public class LongTermMemoryContextProvider implements ContextProvider {
     private static final int MAX_ITEMS = 12;
 
     private final MemoryRecallService recall;
-    private final UsageQuotaService usage;
+    private final TokenCounter tokenCounter;
 
-    public LongTermMemoryContextProvider(MemoryRecallService recall, UsageQuotaService usage) {
+    public LongTermMemoryContextProvider(MemoryRecallService recall, TokenCounter tokenCounter) {
         this.recall = recall;
-        this.usage = usage;
+        this.tokenCounter = tokenCounter;
     }
 
     @Override public String name() { return "long_term_memory"; }
@@ -57,8 +57,8 @@ public class LongTermMemoryContextProvider implements ContextProvider {
             compact.append('\n');
         }
 
-        int fullTokens = usage.estimateTextTokens(full.toString()) + 16;
-        int compTokens = usage.estimateTextTokens(compact.toString()) + 16;
+        int fullTokens = tokenCounter.countText(full.toString()) + 16;
+        int compTokens = tokenCounter.countText(compact.toString()) + 16;
 
         List<Map<String, Object>> fullMsgs = new ArrayList<>(1);
         fullMsgs.add(Map.of("role", "system", "content", full.toString()));

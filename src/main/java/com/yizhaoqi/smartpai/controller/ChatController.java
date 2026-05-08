@@ -14,6 +14,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -57,37 +58,40 @@ public class ChatController extends TextWebSocketHandler {
     public ResponseEntity<?> getWebSocketToken(@RequestHeader("Authorization") String token) {
         try {
             if (token == null || !token.startsWith("Bearer ")) {
-                return ResponseEntity.status(401).body(Map.of("code", 401, "message", "Invalid token", "data", null));
+                return ResponseEntity.status(401).body(errorBody(401, "Invalid token"));
             }
             String jwtToken = token.replace("Bearer ", "");
             if (!jwtUtils.validateToken(jwtToken)) {
-                return ResponseEntity.status(401).body(Map.of("code", 401, "message", "Invalid token", "data", null));
+                return ResponseEntity.status(401).body(errorBody(401, "Invalid token"));
             }
 
             String cmdToken = ChatWebSocketHandler.getInternalCmdToken();
-            
-            // 检查token是否有效
             if (cmdToken == null || cmdToken.trim().isEmpty()) {
-                return ResponseEntity.status(500).body(Map.of(
-                    "code", 500,
-                    "message", "Token生成失败",
-                    "data", null
-                ));
+                return ResponseEntity.status(500).body(errorBody(500, "Token生成失败"));
             }
-            
+
             return ResponseEntity.ok(Map.of(
                 "code", 200,
                 "message", "获取WebSocket停止指令Token成功",
                 "data", Map.of("cmdToken", cmdToken)
             ));
-            
+
         } catch (Exception e) {
             LogUtils.logBusinessError("GET_WEBSOCKET_TOKEN", "system", "获取WebSocket Token失败", e);
-            return ResponseEntity.status(500).body(Map.of(
-                "code", 500,
-                "message", "服务器内部错误：" + e.getMessage(),
-                "data", null
-            ));
+            return ResponseEntity.status(500).body(errorBody(500, "服务器内部错误：" + e.getMessage()));
         }
+    }
+
+    /**
+     * 构造允许 {@code data=null} 的响应体。
+     * <p>{@link Map#of} 不允许 value 为 null，直接用会在 401/500 分支里再 NPE 一次，
+     * 客户端收到的就是栈追踪而不是约定的 JSON。
+     */
+    private static Map<String, Object> errorBody(int code, String message) {
+        Map<String, Object> body = new HashMap<>(3);
+        body.put("code", code);
+        body.put("message", message);
+        body.put("data", null);
+        return body;
     }
 }

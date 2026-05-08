@@ -66,7 +66,14 @@ RUN pip3 install --no-cache-dir --break-system-packages \
 RUN pip3 install --no-cache-dir --break-system-packages yt-dlp \
     || pip3 install --no-cache-dir yt-dlp
 
-# Playwright CDP 运行时（xhs-outreach-comment / qiangua-brand-discover 的 .mjs 需要）
+# 本地 ASR：faster-whisper 与后端同进程外 python 子进程（smartpai.asr.whisper.mode=local-faster-whisper）
+# 不另起 whisper 容器，避免国内 Docker Hub / 加速器 403；首次转写会从 HF 拉模型（可配 HF_ENDPOINT）
+COPY scripts/local_whisper_transcribe.py /app/scripts/local_whisper_transcribe.py
+RUN chmod 755 /app/scripts/local_whisper_transcribe.py \
+    && pip3 install --no-cache-dir --break-system-packages "faster-whisper>=1.0.3,<2" \
+    || pip3 install --no-cache-dir "faster-whisper>=1.0.3,<2"
+
+# Playwright CDP 运行时（蒲公英 brand-side .mjs skill 用）
 # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 跳过 chromium 二进制下载（300MB+），
 # 因为我们只做 connectOverCDP 连业务员本机的 Chrome，不需要服务器端 Chromium
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
@@ -97,8 +104,8 @@ RUN cd /app/skills-bundled/_shared/Spider_XHS \
     && npm cache clean --force
 
 # sandbox 目录（compose 会挂成 volume 做持久化/隔离）
-RUN mkdir -p /app/var/agent-sandbox /app/skills \
-    && chmod -R 755 /app/var /app/skills
+RUN mkdir -p /app/var/agent-sandbox /app/skills /app/scripts \
+    && chmod -R 755 /app/var /app/skills /app/scripts
 
 EXPOSE 8081
 

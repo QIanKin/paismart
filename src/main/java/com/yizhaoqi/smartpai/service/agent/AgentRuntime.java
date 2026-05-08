@@ -17,7 +17,6 @@ import com.yizhaoqi.smartpai.repository.creator.CreatorRepository;
 import com.yizhaoqi.smartpai.service.creator.CreatorService;
 import com.yizhaoqi.smartpai.service.LlmProviderRouter;
 import com.yizhaoqi.smartpai.service.LlmStreamCallback;
-import com.yizhaoqi.smartpai.service.UsageQuotaService;
 import com.yizhaoqi.smartpai.service.agent.context.ContextEngine;
 import com.yizhaoqi.smartpai.service.agent.context.ContextRequest;
 import com.yizhaoqi.smartpai.service.agent.memory.MemoryCompactor;
@@ -60,12 +59,18 @@ public class AgentRuntime {
 
     private static final Logger logger = LoggerFactory.getLogger(AgentRuntime.class);
 
-    /** 模型 prompt 预算：与 ai.generation.max-tokens 组合使用，剩余即 prompt 可用 */
-    private static final int MODEL_CONTEXT_WINDOW = 128_000;
     /** 压缩阈值：未压缩消息数超过此值 → 触发 MemoryCompactor */
     private static final int COMPACTION_THRESHOLD = 60;
     /** 压缩后保留的尾部消息数（保证上下文连贯） */
     private static final int COMPACTION_KEEP_TAIL = 20;
+    /**
+     * 当本 turn 内观察到 ContextEngine 已经在丢弃层 / 使用率 ≥ 该阈值时，
+     * 调低 turn 结束后的 compaction 触发阈值，以便提早压缩历史。
+     * 这是"in-turn 自动压缩"的一部分：给予回路反压感知能力。
+     */
+    private static final double CONTEXT_PRESSURE_USAGE_RATIO = 0.85d;
+    private static final int COMPACTION_THRESHOLD_PRESSURE = 30;
+    private static final int COMPACTION_KEEP_TAIL_PRESSURE = 12;
 
     private final LlmProviderRouter llmProviderRouter;
     private final ToolRegistry toolRegistry;
@@ -81,11 +86,13 @@ public class AgentRuntime {
     private final MessageStore messageStore;
     private final ContextEngine contextEngine;
     private final MemoryCompactor memoryCompactor;
-    private final UsageQuotaService usageQuotaService;
+    private final TokenCounter tokenCounter;
+    private final ToolPayloadTruncator toolPayloadTruncator;
     private final ThreadPoolTaskExecutor backgroundExecutor;
     private final CreatorRepository creatorRepository;
     private final CreatorService creatorService;
     private final ProjectCreatorService projectCreatorService;
+    private final AgentMessageContentService messageContentService;
 
     public AgentRuntime(LlmProviderRouter llmProviderRouter,
                         ToolRegistry toolRegistry,
@@ -100,11 +107,13 @@ public class AgentRuntime {
                         MessageStore messageStore,
                         ContextEngine contextEngine,
                         MemoryCompactor memoryCompactor,
-                        UsageQuotaService usageQuotaService,
+                        TokenCounter tokenCounter,
+                        ToolPayloadTruncator toolPayloadTruncator,
                         @Qualifier("chatMonitorExecutor") ThreadPoolTaskExecutor backgroundExecutor,
                         CreatorRepository creatorRepository,
                         CreatorService creatorService,
-                        ProjectCreatorService projectCreatorService) {
+                        ProjectCreatorService projectCreatorService,
+                        AgentMessageContentService messageContentService) {
         this.llmProviderRouter = llmProviderRouter;
         this.toolRegistry = toolRegistry;
         this.toolExecutor = toolExecutor;
@@ -118,11 +127,13 @@ public class AgentRuntime {
         this.messageStore = messageStore;
         this.contextEngine = contextEngine;
         this.memoryCompactor = memoryCompactor;
-        this.usageQuotaService = usageQuotaService;
+        this.tokenCounter = tokenCounter;
+        this.toolPayloadTruncator = toolPayloadTruncator;
         this.backgroundExecutor = backgroundExecutor;
         this.creatorRepository = creatorRepository;
         this.creatorService = creatorService;
         this.projectCreatorService = projectCreatorService;
+        this.messageContentService = messageContentService;
     }
 
     public void runTurn(AgentRequest req, WebSocketSession session) {
@@ -131,17 +142,18 @@ public class AgentRuntime {
         AtomicBoolean cancelFlag = cancellationRegistry.obtainForSession(session.getId());
         cancelFlag.set(false);
 
-        events.publishStart(session, messageId);
-
         // 1. 解析用户 / session / project
         TurnScope scope;
         try {
             scope = resolveScope(req);
+            events.registerBusinessSession(messageId, scope.session.getId());
+            events.publishStart(session, messageId);
         } catch (Exception e) {
             logger.warn("解析 turn scope 失败 userId={} sessionId={} err={}",
                     req.userId(), req.sessionId(), e.getMessage());
             events.publishError(session, messageId, "scope_resolve_failed: " + e.getMessage());
             events.publishCompletion(session, messageId, "error", "");
+            cancellationRegistry.release(session.getId());
             return;
         }
 
@@ -158,20 +170,27 @@ public class AgentRuntime {
         long effectiveTimeoutMs = req.turnTimeoutMs() > 0 ? Math.min(req.turnTimeoutMs(), configuredTimeoutMs) : configuredTimeoutMs;
         int maxCompletionTokens = aiProperties.getGeneration().getMaxTokens() != null
                 ? aiProperties.getGeneration().getMaxTokens() : 2000;
-        int totalBudgetTokens = Math.max(4000, MODEL_CONTEXT_WINDOW - maxCompletionTokens - 1000);
+        int contextWindow = aiProperties.getAgent().getContextWindowTokens();
+        int totalBudgetTokens = Math.max(4000, contextWindow - maxCompletionTokens - 1000);
+        double inTurnCompactRatio = aiProperties.getAgent().getInTurnCompactUsageRatio();
 
         // 4. 本 turn 的 live messages —— 初始只有 user
+        AgentMessageContentService.ModelUserContent userContent =
+                messageContentService.assembleForModel(req.userMessage(), req.attachments());
         Map<String, Object> userMsg = new HashMap<>();
         userMsg.put("role", "user");
-        userMsg.put("content", req.userMessage());
+        userMsg.put("content", userContent.content());
         List<Map<String, Object>> liveTurn = new ArrayList<>();
         liveTurn.add(userMsg);
 
         // 5. 记录本 turn 要持久化的消息
         String groupId = UUID.randomUUID().toString();
-        int userTokens = usageQuotaService.estimateTextTokens(req.userMessage());
+        int userTokens = userContent.estimatedTokens();
         List<MessageStore.NewMessage> toPersist = new ArrayList<>();
-        toPersist.add(MessageStore.NewMessage.user(req.userMessage(), userTokens));
+        toPersist.add(MessageStore.NewMessage.user(
+                messageContentService.encodeUserContent(req.userMessage(), req.attachments()),
+                userTokens
+        ));
 
         StringBuilder assistantFinalContent = new StringBuilder();
         int step = 0;
@@ -179,76 +198,111 @@ public class AgentRuntime {
         Throwable fatal = null;
         String systemPrompt = buildSystemPrompt(req, scope, tools);
 
-        outer:
-        while (step < effectiveMaxSteps) {
-            step++;
-            if (cancelFlag.get()) { finishReason = "cancelled"; break; }
-            if (System.currentTimeMillis() - turnStart > effectiveTimeoutMs) { finishReason = "timeout"; break; }
+        // 本 turn 期间是否触发过 context 反压（被 ContextEngine 丢弃层 / 高 usage 比）
+        // 若有，turn 结束后会用更激进的阈值跑一次 compaction。
+        boolean contextPressureSeen = false;
 
-            events.publishStepStart(session, messageId, step);
-
-            ContextRequest ctxReq = new ContextRequest(
-                    scope.session.getId(),
-                    scope.session.getProjectId(),
-                    scope.user.getId(),
-                    scope.user.getPrimaryOrg(),
-                    req.userMessage(),
-                    new ArrayList<>(liveTurn),
-                    totalBudgetTokens,
-                    systemPrompt,
-                    tools.stream().map(Tool::name).toList(),
-                    true
-            );
-            ContextEngine.AssembledContext ctx = contextEngine.assemble(ctxReq);
-
-            StepOutcome outcome;
-            try {
-                outcome = runStep(req, session, messageId, ctx.messages(), manifest,
-                        assistantFinalContent, effectiveTimeoutMs);
-            } catch (RateLimitExceededException rle) {
-                events.publishRateLimit(session, messageId, rle.getMessage(), rle.getRetryAfterSeconds());
-                finishReason = "rate_limited";
-                events.publishStepEnd(session, messageId, step);
-                break;
-            } catch (Throwable ex) {
-                fatal = ex;
-                finishReason = "error";
-                events.publishStepEnd(session, messageId, step);
-                break;
-            }
-            events.publishStepEnd(session, messageId, step);
-
-            if (outcome == null) { finishReason = "stop"; break; }
-
-            // 记录 assistant（可能带 tool_calls）
-            liveTurn.add(outcome.assistantMessage);
-            String assistantText = outcome.assistantMessage.get("content") instanceof String s ? s : null;
-            String toolCallsJson = serializeToolCalls(outcome.assistantMessage.get("tool_calls"));
-            int asstTokens = (assistantText == null ? 0 : usageQuotaService.estimateTextTokens(assistantText))
-                    + (toolCallsJson == null ? 0 : usageQuotaService.estimateTextTokens(toolCallsJson) / 4);
-            toPersist.add(MessageStore.NewMessage.assistant(assistantText, toolCallsJson, asstTokens));
-
-            if (outcome.toolCalls.isEmpty()) {
-                finishReason = outcome.finishReason == null ? "stop" : outcome.finishReason;
-                break;
-            }
-
-            for (ToolCallAccumulator.PendingToolCall tc : outcome.toolCalls) {
-                if (cancelFlag.get()) { finishReason = "cancelled"; break outer; }
-                runOneToolCall(req, scope, session, messageId, tc, liveTurn, toPersist, cancelFlag);
-            }
-        }
-
-        if (step >= effectiveMaxSteps && "stop".equals(finishReason)) {
-            finishReason = "max_steps";
-        }
-
-        // 持久化本轮（user + assistants + tools）
         MessageStore.TurnWriteResult writeResult = null;
+        boolean turnWrittenToDb = false;
         try {
+            outer:
+            while (step < effectiveMaxSteps) {
+                step++;
+                if (cancelFlag.get()) { finishReason = "cancelled"; break; }
+                if (System.currentTimeMillis() - turnStart > effectiveTimeoutMs) { finishReason = "timeout"; break; }
+
+                events.publishStepStart(session, messageId, step);
+
+                ContextRequest ctxReq = new ContextRequest(
+                        scope.session.getId(),
+                        scope.session.getProjectId(),
+                        scope.user.getId(),
+                        scope.user.getPrimaryOrg(),
+                        req.userMessage(),
+                        new ArrayList<>(liveTurn),
+                        totalBudgetTokens,
+                        systemPrompt,
+                        tools.stream().map(Tool::name).toList(),
+                        true
+                );
+                ContextEngine.AssembledContext ctx = contextEngine.assemble(ctxReq);
+                if (ctx.droppedLayers() > 0
+                        || (totalBudgetTokens > 0
+                            && ctx.usedTokens() >= totalBudgetTokens * CONTEXT_PRESSURE_USAGE_RATIO)) {
+                    if (!contextPressureSeen) {
+                        logger.info("Context 反压触发（首次） sessionId={} step={} used={}/{} dropped={} compressed={}",
+                                scope.session.getId(), step, ctx.usedTokens(), totalBudgetTokens,
+                                ctx.droppedLayers(), ctx.compressedLayers());
+                    }
+                    contextPressureSeen = true;
+                }
+
+                StepOutcome outcome;
+                try {
+                    outcome = runStep(req, session, messageId, ctx.messages(), manifest,
+                            assistantFinalContent, effectiveTimeoutMs);
+                } catch (RateLimitExceededException rle) {
+                    logger.warn("Agent step 限流 user={} session={} project={} retryAfter={} message={}",
+                            req.userId(), scope.session.getId(), scope.session.getProjectId(),
+                            rle.getRetryAfterSeconds(), rle.getMessage());
+                    events.publishRateLimit(session, messageId, rle.getMessage(), rle.getRetryAfterSeconds());
+                    finishReason = "rate_limited";
+                    events.publishStepEnd(session, messageId, step);
+                    break;
+                } catch (Throwable ex) {
+                    fatal = ex;
+                    finishReason = "error";
+                    events.publishStepEnd(session, messageId, step);
+                    break;
+                }
+                events.publishStepEnd(session, messageId, step);
+
+                if (outcome == null) { finishReason = "stop"; break; }
+
+                // 记录 assistant（可能带 tool_calls）
+                liveTurn.add(outcome.assistantMessage);
+                String assistantText = outcome.assistantMessage.get("content") instanceof String s ? s : null;
+                String toolCallsJson = serializeToolCalls(outcome.assistantMessage.get("tool_calls"));
+                int asstTokens = (assistantText == null ? 0 : usageQuotaService.estimateTextTokens(assistantText))
+                        + (toolCallsJson == null ? 0 : usageQuotaService.estimateTextTokens(toolCallsJson) / 4);
+                toPersist.add(MessageStore.NewMessage.assistant(assistantText, toolCallsJson, asstTokens));
+
+                if (outcome.toolCalls.isEmpty()) {
+                    finishReason = outcome.finishReason == null ? "stop" : outcome.finishReason;
+                    break;
+                }
+
+                for (ToolCallAccumulator.PendingToolCall tc : outcome.toolCalls) {
+                    if (cancelFlag.get()) { finishReason = "cancelled"; break outer; }
+                    runOneToolCall(req, scope, session, messageId, tc, liveTurn, toPersist, cancelFlag);
+                }
+            }
+
+            if (step >= effectiveMaxSteps && "stop".equals(finishReason)) {
+                finishReason = "max_steps";
+            }
+
             writeResult = messageStore.appendTurn(scope.session.getId(), groupId, toPersist);
-        } catch (Exception e) {
-            logger.warn("MessageStore.appendTurn 失败 sessionId={} err={}", scope.session.getId(), e.getMessage(), e);
+            turnWrittenToDb = true;
+        } catch (Throwable outer) {
+            // assemble / appendTurn 等未预料异常：仍尽力落库，避免用户切走或 WS 抖动导致整轮对话从 DB 消失
+            if (fatal == null) {
+                fatal = outer;
+                finishReason = "error";
+            }
+            logger.error("Agent 轮次异常（将尝试补写已累积消息）user={} session={} err={}",
+                    req.userId(), scope.session.getId(), outer.getMessage(), outer);
+        } finally {
+            if (!turnWrittenToDb && !toPersist.isEmpty()) {
+                try {
+                    writeResult = messageStore.appendTurn(scope.session.getId(), groupId, toPersist);
+                    turnWrittenToDb = true;
+                    logger.info("已通过 finally 补写本轮消息 sessionId={} rows={}", scope.session.getId(), toPersist.size());
+                } catch (Exception e2) {
+                    logger.warn("finally 补写 appendTurn 仍失败 sessionId={} err={}",
+                            scope.session.getId(), e2.getMessage(), e2);
+                }
+            }
         }
 
         if (fatal != null) {
@@ -256,6 +310,7 @@ public class AgentRuntime {
                     fatal.getMessage() == null ? fatal.getClass().getSimpleName() : fatal.getMessage());
         }
         events.publishCompletion(session, messageId, finishReason, assistantFinalContent.toString());
+        events.releaseBusinessSession(messageId);
         cancellationRegistry.release(session.getId());
 
         logger.info("Agent 轮次结束 user={} session={} project={} step={} reason={} cost={}ms finalLen={} persisted={}",
@@ -263,13 +318,16 @@ public class AgentRuntime {
                 System.currentTimeMillis() - turnStart, assistantFinalContent.length(),
                 writeResult == null ? 0 : writeResult.persisted().size());
 
-        // 后台触发记忆压缩，不阻塞当前响应
+        // 后台触发记忆压缩，不阻塞当前响应。
+        // 反压情况下用更激进的阈值——尽快把更多历史压成 memory，给下一轮释放上下文。
         final ChatSession sessionSnap = writeResult != null ? writeResult.session() : scope.session;
         final String requester = req.userId();
+        final int compactionThreshold = contextPressureSeen ? COMPACTION_THRESHOLD_PRESSURE : COMPACTION_THRESHOLD;
+        final int compactionKeepTail = contextPressureSeen ? COMPACTION_KEEP_TAIL_PRESSURE : COMPACTION_KEEP_TAIL;
         backgroundExecutor.execute(() -> {
             try {
                 memoryCompactor.maybeCompactSession(sessionSnap.getId(), requester,
-                        COMPACTION_THRESHOLD, COMPACTION_KEEP_TAIL);
+                        compactionThreshold, compactionKeepTail);
             } catch (Exception e) {
                 logger.warn("MemoryCompactor 异步执行失败 sessionId={} err={}",
                         sessionSnap.getId(), e.getMessage());
@@ -301,19 +359,23 @@ public class AgentRuntime {
      * 工具白名单合并：
      * - 若某层为空 → 透明（不过滤）
      * - 非空 → 与上一层取交集
-     * 返回 null 表示 "全量使用"，ToolRegistry.subset(null) 语义要求支持。
+     * 返回 null 表示 "没有任何一层限制，允许全量使用"；
+     * 返回空集合表示 "至少一层有限制，但交集为空"，后续必须得到空工具集。
      */
-    private List<String> mergeWhitelists(List<String> project, List<String> request, List<String> global) {
+    static List<String> mergeWhitelists(List<String> project, List<String> request, List<String> global) {
         List<String> current = null;
+        boolean constrained = false;
         for (List<String> layer : List.of(
                 project == null ? List.<String>of() : project,
                 request == null ? List.<String>of() : request,
                 global == null ? List.<String>of() : global)) {
             if (layer.isEmpty()) continue;
+            constrained = true;
             if (current == null) current = new ArrayList<>(layer);
             else current.retainAll(layer);
         }
-        if (current == null || current.isEmpty()) return null;
+        if (!constrained) return null;
+        if (current == null || current.isEmpty()) return List.of();
         return current;
     }
 
@@ -392,19 +454,20 @@ public class AgentRuntime {
         if (toolName == null || toolName.isBlank()) {
             logger.warn("LLM 返回的 tool_call 缺少 name，忽略");
             appendToolMessage(liveTurn, toolUseId, "error: missing tool name");
-            toPersist.add(MessageStore.NewMessage.tool(toolUseId, null, "error: missing tool name", 0L, 8));
+            toPersist.add(MessageStore.NewMessage.tool(toolUseId, null, "error: missing tool name", 0L, null, 8));
             return;
         }
 
         Tool tool = toolRegistry.find(toolName).orElse(null);
         if (tool == null) {
             logger.warn("工具不存在: {}", toolName);
+            ToolResult unknown = ToolResult.error("unknown_tool: " + toolName);
             events.publishToolCall(session, messageId, toolUseId, new FakeUnknownTool(toolName), tc.arguments());
-            events.publishToolResult(session, messageId, toolUseId, toolName,
-                    ToolResult.error("unknown_tool: " + toolName), 0L);
-            String payload = toolExecutor.resultToLlmPayload(ToolResult.error("unknown_tool: " + toolName));
+            events.publishToolResult(session, messageId, toolUseId, toolName, unknown, 0L);
+            String payload = toolExecutor.resultToLlmPayload(unknown);
+            String metaJson = serializeToolMeta(unknown.meta());
             appendToolMessage(liveTurn, toolUseId, payload);
-            toPersist.add(MessageStore.NewMessage.tool(toolUseId, toolName, payload, 0L,
+            toPersist.add(MessageStore.NewMessage.tool(toolUseId, toolName, payload, 0L, metaJson,
                     usageQuotaService.estimateTextTokens(payload)));
             return;
         }
@@ -431,9 +494,24 @@ public class AgentRuntime {
 
         events.publishToolResult(session, messageId, toolUseId, toolName, exec.result(), cost);
         String payload = toolExecutor.resultToLlmPayload(exec.result());
+        String metaJson = serializeToolMeta(exec.result().meta());
         appendToolMessage(liveTurn, toolUseId, payload);
-        toPersist.add(MessageStore.NewMessage.tool(toolUseId, toolName, payload, cost,
+        toPersist.add(MessageStore.NewMessage.tool(toolUseId, toolName, payload, cost, metaJson,
                 usageQuotaService.estimateTextTokens(payload)));
+    }
+
+    /**
+     * 把 ToolResult.meta 序列化为 JSON 字符串，以便随 tool 消息持久化到 agent_messages.tool_meta。
+     * <p>对应 Bug-fix（视频卡片）：旧实现 meta 只在 WS 推一次，刷新历史就消失。
+     */
+    private String serializeToolMeta(Map<String, Object> meta) {
+        if (meta == null || meta.isEmpty()) return null;
+        try {
+            return objectMapper.writeValueAsString(meta);
+        } catch (Exception e) {
+            logger.warn("序列化 tool meta 失败 keys={} err={}", meta.keySet(), e.getMessage());
+            return null;
+        }
     }
 
     private void appendToolMessage(List<Map<String, Object>> liveTurn, String toolUseId, String content) {
@@ -474,6 +552,9 @@ public class AgentRuntime {
             sb.append("3. 充分使用提供的 tools；一次回答不要虚构 tool 调用的结果。\n");
             sb.append("4. 当信息不足，向用户发起 ask_user 反问，而不是硬猜。\n");
             sb.append("5. 输出中文；引用知识库片段时尽量带来源编号。\n");
+            sb.append("6. 遇到可复用的新流程、新排障方法或新工具用法时，优先用 skill_upsert 沉淀为 skill，之后通过 list_skills/use_skill 复用。\n");
+            sb.append("7. 小红书数据获取优先级：公开博主/笔记优先走 TikHub（如 tikhub_creator_import、xhs_refresh_creator、xhs_search_notes、xhs_third_party_*）；"
+                    + "蒲公英只用于粉丝画像/报价，聚光只用于广告数据；cookie/web 抓取只作为兜底。\n");
         }
 
         // 项目级上下文（带项目信息、名册 top N）
@@ -534,17 +615,17 @@ public class AgentRuntime {
                         total > cap ? "，以下按 priority/id 展示 top " + cap : "").append("):\n");
                 for (int i = 0; i < cap; i++) {
                     ProjectCreatorService.RosterEntryView v = roster.get(i);
-                    sb.append("  * [stage=").append(v.entry().getStage())
-                            .append(", priority=").append(v.entry().getPriority()).append("] ");
-                    Creator c = v.creator();
+                    sb.append("  * [stage=").append(v.stage())
+                            .append(", priority=").append(v.priority()).append("] ");
+                    ProjectCreatorService.CreatorView c = v.creator();
                     if (c != null) {
-                        sb.append(nullToDash(c.getDisplayName()))
-                                .append(" (creatorId=").append(c.getId()).append(")");
-                        if (c.getTrackTagsJson() != null && !c.getTrackTagsJson().isBlank()) {
-                            sb.append(" 赛道=").append(truncate(c.getTrackTagsJson(), 48));
+                        sb.append(nullToDash(c.displayName()))
+                                .append(" (creatorId=").append(c.id()).append(")");
+                        if (c.trackTags() != null && !c.trackTags().isBlank()) {
+                            sb.append(" 赛道=").append(truncate(c.trackTags(), 48));
                         }
                     } else {
-                        sb.append("creatorId=").append(v.entry().getCreatorId()).append(" (档案已被删除)");
+                        sb.append("creatorId=").append(v.creatorId()).append(" (档案已被删除)");
                     }
                     sb.append('\n');
                 }
@@ -573,9 +654,11 @@ public class AgentRuntime {
             case ALLOCATION -> sb.append("""
                     你正在协助用户为本项目挑选 & 分配博主。工作步骤建议：
                     1. 先用 creator_search 在本企业博主库里按 赛道/人设/互动 过滤出候选；
-                    2. 对每个候选，调用 creator_get_posts 看最近笔记是否匹配投放诉求；
-                    3. 给出「推荐入围 / 需谈 / 不匹配」三档结论，并解释原因；
-                    4. 用户确认后，使用 project_roster_* 工具把入围博主写入项目名册。
+                    2. 若内部库没命中，优先用 tikhub_creator_import 按昵称/小红书号/主页链接补进库；
+                    3. 对候选调用 creator_get_posts 看最近笔记是否匹配投放诉求；
+                    4. 需要画像/报价时，再额外调用 xhs_pgy_kol_detail；
+                    5. 给出「推荐入围 / 需谈 / 不匹配」三档结论，并解释原因；
+                    6. 用户确认后，使用 project_roster_* 工具把入围博主写入项目名册。
                     绝不要基于想象推荐博主，所有博主都必须能在内部库里查到。
                     """);
             case BLOGGER_BRIEF -> sb.append("""

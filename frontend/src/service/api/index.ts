@@ -1,3 +1,5 @@
+export * from './agent-asset';
+export * from './agent-capabilities';
 export * from './auth';
 export * from './creator';
 export * from './invite-code';

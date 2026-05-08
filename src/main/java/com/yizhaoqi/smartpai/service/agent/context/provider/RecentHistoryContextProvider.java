@@ -1,7 +1,7 @@
 package com.yizhaoqi.smartpai.service.agent.context.provider;
 
 import com.yizhaoqi.smartpai.model.agent.AgentMessage;
-import com.yizhaoqi.smartpai.service.UsageQuotaService;
+import com.yizhaoqi.smartpai.service.agent.TokenCounter;
 import com.yizhaoqi.smartpai.service.agent.context.ContextContribution;
 import com.yizhaoqi.smartpai.service.agent.context.ContextProvider;
 import com.yizhaoqi.smartpai.service.agent.context.ContextRequest;
@@ -29,11 +29,11 @@ public class RecentHistoryContextProvider implements ContextProvider {
     private static final int COMPRESSED_TAIL = 10;
 
     private final MessageStore messageStore;
-    private final UsageQuotaService usage;
+    private final TokenCounter tokenCounter;
 
-    public RecentHistoryContextProvider(MessageStore messageStore, UsageQuotaService usage) {
+    public RecentHistoryContextProvider(MessageStore messageStore, TokenCounter tokenCounter) {
         this.messageStore = messageStore;
-        this.usage = usage;
+        this.tokenCounter = tokenCounter;
     }
 
     @Override public String name() { return "recent_history"; }
@@ -50,7 +50,7 @@ public class RecentHistoryContextProvider implements ContextProvider {
         for (AgentMessage m : recent) {
             full.add(messageStore.toOpenAiMessage(m));
             if (m.getTokenEstimate() != null) fullTokens += m.getTokenEstimate();
-            else if (m.getContent() != null) fullTokens += usage.estimateTextTokens(m.getContent());
+            else if (m.getContent() != null) fullTokens += tokenCounter.countText(m.getContent());
             fullTokens += 8;
         }
 
@@ -69,7 +69,7 @@ public class RecentHistoryContextProvider implements ContextProvider {
             AgentMessage m = recent.get(i);
             compressed.add(messageStore.toOpenAiMessage(m));
             if (m.getTokenEstimate() != null) compTokens += m.getTokenEstimate();
-            else if (m.getContent() != null) compTokens += usage.estimateTextTokens(m.getContent());
+            else if (m.getContent() != null) compTokens += tokenCounter.countText(m.getContent());
             compTokens += 8;
         }
 

@@ -22,9 +22,15 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Skill 子系统 REST 入口：
@@ -80,9 +86,53 @@ public class SkillController {
                 .map(s -> {
                     Map<String, Object> body = new LinkedHashMap<>(s.toManifest());
                     body.put("instructions", s.bodyMd());
+                    // 把磁盘上完整 SKILL.md（含 front-matter）读出来，前端能力中心需要原文做编辑。
+                    // 失败不致命：detail 至少能拿到 instructions。
+                    body.put("rawMarkdown", readRawSkillMd(s).orElse(null));
                     return ok(body);
                 })
                 .orElseGet(() -> notFound("skill not found: " + name));
+    }
+
+    /**
+     * 编辑某个 skill 的 SKILL.md 全文。
+     * <ul>
+     *   <li>BUILTIN 来源不允许编辑（避免改坏内置）；</li>
+     *   <li>只接受当前用户所在 org 可见的 skill；</li>
+     *   <li>整个文件覆盖写回磁盘；写完触发 reloadNow 让 Registry 立即生效。</li>
+     * </ul>
+     */
+    @PutMapping("/{id}/source")
+    public ResponseEntity<?> editSource(@RequestHeader("Authorization") String auth,
+                                        @PathVariable Long id,
+                                        @RequestBody Map<String, Object> body) {
+        User u = resolveUser(auth);
+        Optional<Skill> opt = skillRepository.findById(id);
+        if (opt.isEmpty()) return notFound("skill id not found: " + id);
+        Skill skill = opt.get();
+        if (skill.getSource() == Skill.Source.BUILTIN) {
+            return ResponseEntity.status(403).body(Map.of("code", 403, "message", "BUILTIN skill 不允许直接编辑"));
+        }
+        if (skill.getOwnerOrgTag() != null && !skill.getOwnerOrgTag().equals(u.getPrimaryOrg())) {
+            return ResponseEntity.status(403).body(Map.of("code", 403, "message", "无权编辑该 skill"));
+        }
+        Object contentObj = body.get("content");
+        if (!(contentObj instanceof String content) || content.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("code", 400, "message", "content 不能为空"));
+        }
+        String rootPath = skill.getRootPath();
+        if (rootPath == null || rootPath.isBlank()) {
+            return ResponseEntity.status(409).body(Map.of("code", 409, "message", "skill 缺少 rootPath，无法定位文件"));
+        }
+        Path md = Paths.get(rootPath).resolve("SKILL.md");
+        try {
+            Files.writeString(md, content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(Map.of("code", 500,
+                    "message", "写入 SKILL.md 失败: " + e.getMessage()));
+        }
+        SkillLoader.ReloadResult r = loader.reloadNow();
+        return ok(Map.of("id", id, "name", skill.getName(), "reload", r));
     }
 
     @PostMapping("/reload")
@@ -90,6 +140,18 @@ public class SkillController {
         resolveUser(auth);
         SkillLoader.ReloadResult r = loader.reloadNow();
         return ok(r);
+    }
+
+    private Optional<String> readRawSkillMd(LoadedSkill s) {
+        try {
+            String root = s.rootPath();
+            if (root == null || root.isBlank()) return Optional.empty();
+            Path md = Paths.get(root).resolve("SKILL.md");
+            if (!Files.isRegularFile(md)) return Optional.empty();
+            return Optional.of(Files.readString(md, StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
     }
 
     @PutMapping("/{id}/enabled")

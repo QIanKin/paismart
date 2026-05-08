@@ -1,6 +1,6 @@
 package com.yizhaoqi.smartpai.service.agent.context.provider;
 
-import com.yizhaoqi.smartpai.service.UsageQuotaService;
+import com.yizhaoqi.smartpai.service.agent.TokenCounter;
 import com.yizhaoqi.smartpai.service.agent.context.ContextContribution;
 import com.yizhaoqi.smartpai.service.agent.context.ContextProvider;
 import com.yizhaoqi.smartpai.service.agent.context.ContextRequest;
@@ -17,10 +17,10 @@ import java.util.Map;
 @Component
 public class LiveTurnContextProvider implements ContextProvider {
 
-    private final UsageQuotaService usage;
+    private final TokenCounter tokenCounter;
 
-    public LiveTurnContextProvider(UsageQuotaService usage) {
-        this.usage = usage;
+    public LiveTurnContextProvider(TokenCounter tokenCounter) {
+        this.tokenCounter = tokenCounter;
     }
 
     @Override public String name() { return "live_turn"; }
@@ -30,12 +30,9 @@ public class LiveTurnContextProvider implements ContextProvider {
     public List<ContextContribution> contribute(ContextRequest req) {
         List<Map<String, Object>> live = req.liveTurnMessages();
         if (live == null || live.isEmpty()) return List.of();
-        int tokens = 0;
-        for (Map<String, Object> m : live) {
-            Object c = m.get("content");
-            if (c instanceof String s) tokens += usage.estimateTextTokens(s);
-            tokens += 8;
-        }
+        // 用 TokenCounter.countChatMessages 一次性把 role/content/tool_calls/+4-per-msg overhead 都算进来，
+        // 避免 contribution 估算口径低于"模型实际看到"。
+        int tokens = tokenCounter.countChatMessages(live);
         return List.of(ContextContribution.of("live_turn", 99, tokens, new ArrayList<>(live)));
     }
 }

@@ -6,6 +6,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.sax.BodyContentHandler;
@@ -107,6 +108,30 @@ public class ParseService {
     public void parseAndSave(String fileMd5, InputStream fileStream) throws IOException, TikaException {
         // 使用默认值调用新方法
         parseAndSave(fileMd5, fileStream, "unknown", "DEFAULT", false);
+    }
+
+    public String extractPlainText(InputStream fileStream, String fileName) throws IOException, TikaException {
+        logger.info("开始抽取文档纯文本 fileName={}", fileName);
+        checkMemoryThreshold();
+
+        try (BufferedInputStream bufferedStream = new BufferedInputStream(fileStream, bufferSize)) {
+            if (isPdfDocument(bufferedStream)) {
+                return extractPdfPlainText(bufferedStream);
+            }
+
+            BodyContentHandler handler = new BodyContentHandler(-1);
+            Metadata metadata = new Metadata();
+            if (fileName != null && !fileName.isBlank()) {
+                metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, fileName);
+            }
+            ParseContext context = new ParseContext();
+            AutoDetectParser parser = new AutoDetectParser();
+            parser.parse(bufferedStream, handler, metadata, context);
+            return normalizeExtractedText(handler.toString());
+        } catch (SAXException e) {
+            logger.error("文档纯文本抽取失败 fileName={}", fileName, e);
+            throw new RuntimeException("文档文本抽取失败", e);
+        }
     }
 
     public EmbeddingEstimate estimateEmbeddingUsage(InputStream fileStream) throws IOException, TikaException {
@@ -312,6 +337,24 @@ public class ParseService {
         }
     }
 
+    private String extractPdfPlainText(InputStream fileStream) throws IOException {
+        try (PDDocument document = PDDocument.load(fileStream)) {
+            List<String> cleanedPageTexts = extractCleanPdfPageTexts(document);
+            StringBuilder out = new StringBuilder();
+            for (int pageNumber = 1; pageNumber <= cleanedPageTexts.size(); pageNumber++) {
+                String pageText = cleanedPageTexts.get(pageNumber - 1);
+                if (pageText == null || pageText.isBlank()) {
+                    continue;
+                }
+                if (out.length() > 0) {
+                    out.append("\n\n");
+                }
+                out.append("[第").append(pageNumber).append("页]\n").append(pageText.strip());
+            }
+            return normalizeExtractedText(out.toString());
+        }
+    }
+
     private List<String> extractCleanPdfPageTexts(PDDocument document) throws IOException {
         PDFTextStripper stripper = new PDFTextStripper();
         List<List<String>> rawPageLines = new ArrayList<>();
@@ -492,6 +535,20 @@ public class ParseService {
             return normalized;
         }
         return normalized.substring(0, maxLength) + "…";
+    }
+
+    private String normalizeExtractedText(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        return raw
+                .replace('\u0000', ' ')
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replaceAll("[\\t\\x0B\\f]+", " ")
+                .replaceAll("\\n{3,}", "\n\n")
+                .replaceAll("[ ]{2,}", " ")
+                .trim();
     }
 
     /**

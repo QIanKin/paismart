@@ -45,6 +45,18 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'agent-capabilities',
+    path: '/agent-capabilities',
+    component: 'layout.base$view.agent-capabilities',
+    meta: {
+      title: 'agent-capabilities',
+      i18nKey: 'route.agent-capabilities',
+      icon: 'solar:bolt-bold-duotone',
+      roles: ['ADMIN'],
+      order: 92
+    }
+  },
+  {
     name: 'agent-project-detail',
     path: '/agent-projects/:id',
     component: 'layout.base$view.agent-project-detail',
@@ -76,18 +88,6 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.chat',
       icon: 'solar:chat-round-call-line-duotone',
       hideInMenu: true
-    }
-  },
-  {
-    name: 'chat-history',
-    path: '/chat-history',
-    component: 'layout.base$view.chat-history',
-    meta: {
-      title: 'chat-history',
-      i18nKey: 'route.chat-history',
-      roles: ['ADMIN'],
-      icon: 'solar:hashtag-chat-bold-duotone',
-      order: 96
     }
   },
   {

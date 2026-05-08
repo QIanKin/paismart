@@ -101,6 +101,13 @@ public final class ToolInputSchemas {
             return enumProp(name, desc, Arrays.asList(values), requiredFlag);
         }
 
+        /** 不限制类型的 prop（boolean / string / number / object 都接受）。 */
+        public Builder anyProp(String name, String desc, boolean requiredFlag) {
+            ObjectNode node = MAPPER.createObjectNode();
+            if (desc != null) node.put("description", desc);
+            return prop(name, node, requiredFlag);
+        }
+
         public Builder objectProp(String name, String desc, ObjectNode schema, boolean requiredFlag) {
             ObjectNode node = schema.deepCopy();
             if (desc != null) node.put("description", desc);

@@ -1,13 +1,16 @@
 <script setup lang="tsx">
 import { computed, h, onMounted, reactive, ref, watch } from 'vue';
 import {
+  NAlert,
   NButton,
   NDataTable,
   NDrawer,
   NDrawerContent,
+  NDropdown,
   NFlex,
   NForm,
   NFormItem,
+  NIcon,
   NInput,
   NInputNumber,
   NModal,
@@ -18,7 +21,7 @@ import {
   NTabs,
   NTag
 } from 'naive-ui';
-import type { DataTableColumns } from 'naive-ui';
+import type { DataTableColumns, DropdownOption } from 'naive-ui';
 import { fetchCustomFieldDelete, fetchCustomFieldUpsert, fetchCustomFields } from '@/service/api';
 
 interface Props {
@@ -78,6 +81,72 @@ const dataTypeOptions = [
   { label: '日期 date', value: 'date' },
   { label: '链接 url', value: 'url' }
 ];
+
+/**
+ * "业务预设字段"：把常用的 MCN 报价 / 备注 / 渠道字段一键加进来。
+ *
+ * 这些字段在企业客户场景里几乎是必备的（蒲公英报价、本月折扣报价、内部备注、是否签约博主等），
+ * 让用户一键添加就不用每次手填 fieldKey/dataType。
+ */
+interface CustomFieldPreset {
+  entityType: Api.Creator.CustomFieldEntity;
+  fieldKey: string;
+  label: string;
+  dataType: string;
+  description: string;
+}
+
+const PRESETS: CustomFieldPreset[] = [
+  { entityType: 'account', fieldKey: 'pgy_quote_yuan', label: '蒲公英报价（元）', dataType: 'money', description: '从蒲公英平台读到的官方报价；用于客户合同基线' },
+  { entityType: 'account', fieldKey: 'discounted_quote_this_month', label: '本月折扣报价（元）', dataType: 'money', description: '当月给客户的对外报价，导出 Excel 时优先展示此字段' },
+  { entityType: 'account', fieldKey: 'cooperation_history', label: '合作历史备注', dataType: 'text', description: '过往合作的关键记录：交付质量 / 拖稿 / 数据等' },
+  { entityType: 'account', fieldKey: 'private_contact', label: '私下联系方式', dataType: 'string', description: '微信 / 电话；仅对内可见' },
+  { entityType: 'account', fieldKey: 'is_signed_kol', label: '是否签约博主', dataType: 'boolean', description: '本公司签约/独家博主，true 时优先排期' },
+  { entityType: 'project_creator', fieldKey: 'final_quote_yuan', label: '本项目最终报价（元）', dataType: 'money', description: '该博主在本项目下的成交价' },
+  { entityType: 'project_creator', fieldKey: 'delivery_status', label: '交付状态', dataType: 'enum', description: '未确认 / 已签 / 拍摄中 / 已交付 / 已上线' },
+  { entityType: 'project_creator', fieldKey: 'delivery_due_date', label: '交付截止日期', dataType: 'date', description: '本项目下博主的交付 deadline' },
+  { entityType: 'project_creator', fieldKey: 'contract_no', label: '合同编号', dataType: 'string', description: '本项目下与该博主的合同号' }
+];
+
+function applyPreset(preset: CustomFieldPreset) {
+  entityType.value = preset.entityType;
+  Object.assign(editForm, {
+    id: undefined,
+    entityType: preset.entityType,
+    fieldKey: preset.fieldKey,
+    label: preset.label,
+    dataType: preset.dataType,
+    required: false,
+    builtIn: false,
+    orderNo: rows.value.length,
+    options: preset.dataType === 'enum' ? '未确认,已签,拍摄中,已交付,已上线' : '',
+    description: preset.description
+  });
+  editVisible.value = true;
+}
+
+const presetMenu = computed<DropdownOption[]>(() => [
+  {
+    label: '账号 (account) 推荐字段',
+    key: 'group-account',
+    type: 'group',
+    children: PRESETS.filter(p => p.entityType === 'account').map(p => ({
+      label: `${p.label}（${p.dataType}）`,
+      key: `preset-${p.entityType}-${p.fieldKey}`,
+      props: { onClick: () => applyPreset(p) }
+    }))
+  },
+  {
+    label: '项目名册 (project_creator) 推荐字段',
+    key: 'group-pc',
+    type: 'group',
+    children: PRESETS.filter(p => p.entityType === 'project_creator').map(p => ({
+      label: `${p.label}（${p.dataType}）`,
+      key: `preset-${p.entityType}-${p.fieldKey}`,
+      props: { onClick: () => applyPreset(p) }
+    }))
+  }
+]);
 
 function openCreate() {
   Object.assign(editForm, {
@@ -172,15 +241,28 @@ onMounted(load);
   <NDrawer v-model:show="show" :width="960" placement="right">
     <NDrawerContent title="自定义字段管理" closable>
       <NFlex vertical :size="12">
+        <NAlert type="info" :show-icon="false" :bordered="false" style="background: rgba(59,130,246,.06)">
+          <div class="text-sm leading-relaxed">
+            <strong>使用建议：</strong>
+            自定义字段最常用于「<b>账号 (account)</b>」与「<b>项目名册 (project_creator)</b>」两类——
+            前者放企业沉淀的博主元数据（如蒲公英报价、本月折扣价、内部备注），
+            后者放每个项目里这位博主的合作信息（如最终报价、交付状态、合同号）。
+            其它实体（博主人、内容、项目）通常不需要再额外加字段。
+          </div>
+        </NAlert>
+
         <NTabs v-model:value="entityType" type="line">
-          <NTabPane name="account" tab="账号字段" />
+          <NTabPane name="account" tab="账号字段（推荐）" />
+          <NTabPane name="project_creator" tab="名册条目字段（推荐）" />
           <NTabPane name="creator" tab="博主(人)字段" />
           <NTabPane name="post" tab="内容字段" />
           <NTabPane name="project" tab="项目字段" />
-          <NTabPane name="project_creator" tab="名册条目字段" />
         </NTabs>
 
-        <div class="flex justify-end">
+        <div class="flex justify-end gap-2">
+          <NDropdown :options="presetMenu" trigger="hover" placement="bottom-end">
+            <NButton size="small" ghost>添加业务预设</NButton>
+          </NDropdown>
           <NButton size="small" type="primary" @click="openCreate">新增字段</NButton>
         </div>
 

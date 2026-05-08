@@ -10,9 +10,12 @@
  *
  * 发送：走 chatStore.wsSend(JSON.stringify({ type:'chat', content, sessionId, projectId }))
  */
-import { NButton, NEmpty, NScrollbar, NSpin, NTag, NTooltip } from 'naive-ui';
+import { NButton, NEmpty, NProgress, NScrollbar, NSpin, NTag, NTooltip } from 'naive-ui';
+import ChatImagePreviewModal from '@/components/custom/chat-image-preview-modal.vue';
 import SvgIcon from '@/components/custom/svg-icon.vue';
-import { fetchSessionMessages } from '@/service/api';
+import { useChatImageAttachments } from '@/hooks/business/use-chat-image-attachments';
+import { fetchSessionLive, fetchSessionMessages } from '@/service/api';
+import { fileSize } from '@/utils/common';
 import { VueMarkdownIt } from '@/vendor/vue-markdown-shiki';
 import { type ErrorCodeHelp, lookupErrorHelp } from './agent-error-codes';
 import { type ToolCallView, mapServerMessages, useAgentSessionStore } from './session-bus';
@@ -25,8 +28,10 @@ const props = defineProps<Props>();
 
 const chatStore = useChatStore();
 const sessionBus = useAgentSessionStore();
-// storeToRefs 不转函数，wsSend 这种 action 直接从 store 实例拿
-const { connectionStatus, wsData } = storeToRefs(chatStore);
+// 全局 WS 事件订阅（Bug-fix：流式中断不续接）：把 chunk/tool_*/completion 等的处理迁到 store 层，
+// 组件卸载也不会丢事件；这里只需保证至少注册过一次。
+sessionBus.ensureWsWatcher();
+const { connectionStatus } = storeToRefs(chatStore);
 const wsSend = chatStore.wsSend;
 
 // 当前会话 messages（响应式）
@@ -37,23 +42,66 @@ const todos = computed(() => sessionBus.todosBySession[props.sessionId] || []);
 const currentStep = computed(() => sessionBus.currentStepBySession[props.sessionId] ?? null);
 const loadingHistory = ref(false);
 
-// 用户发送消息时记住哪个业务会话在"等回复"；因为后端事件不带业务 sessionId，
-// 我们用"最近一次 send 的 businessSessionId"作为归属键。
-const pendingBusinessSessionId = ref<number | null>(null);
-const currentAssistantSessionId = ref<number | null>(null);
-
 const inputText = ref('');
 const inputRef = ref<HTMLTextAreaElement | null>(null);
+const previewVisible = ref(false);
+const previewImages = ref<Array<{ url?: string | null; fileName?: string | null }>>([]);
+const previewIndex = ref(0);
 
-const isSending = computed(() => pendingBusinessSessionId.value !== null);
+const isSending = computed(() => sessionBus.pendingSessionIds.has(props.sessionId));
+const {
+  imageInputRef,
+  pendingAttachments,
+  readyAttachments,
+  uploadingImages,
+  hasBlockingUploads,
+  dragActive,
+  openImagePicker,
+  handleImagePicked,
+  handlePaste,
+  handleDragEnter,
+  handleDragOver,
+  handleDragLeave,
+  handleDrop,
+  removePendingAttachment,
+  retryPendingAttachment,
+  resetAttachments
+} = useChatImageAttachments({
+  maxImages: 4,
+  disabled: () => isSending.value
+});
+const canSend = computed(() => {
+  return (Boolean(inputText.value.trim()) || readyAttachments.value.length > 0)
+    && !isSending.value
+    && !hasBlockingUploads.value
+    && connectionStatus.value === 'OPEN';
+});
+
+// 防止"快速切会话"时旧请求的响应覆盖当前会话：
+// 每个 sessionId 维护一个"最新请求 id"，只有最新一次的响应可以写回消息。
+const historyReqSeq = new Map<number, number>();
 
 async function loadHistory(sid: number) {
+  const mySeq = (historyReqSeq.get(sid) || 0) + 1;
+  historyReqSeq.set(sid, mySeq);
   loadingHistory.value = true;
   try {
     const { data } = await fetchSessionMessages(sid);
+    if (historyReqSeq.get(sid) !== mySeq) return;
     sessionBus.setMessages(sid, mapServerMessages(data ?? []));
+
+    // Bug-fix「流式中断不续接」：拉完已落库的历史，再请求活体快照。
+    // 后端 runTurn 期间事件累积进 Redis；如果用户当时切走再回来，这里就能拿到 partial assistant +
+    // 进行中工具卡片，拼到列表尾部。后续 chunk 通过 store 层的 WS 订阅继续 append。
+    try {
+      const live = await fetchSessionLive(sid);
+      if (historyReqSeq.get(sid) !== mySeq) return;
+      if (live?.data) sessionBus.attachLiveSnapshot(sid, live.data);
+    } catch {
+      /* 拿不到 live 不影响主流程 */
+    }
   } finally {
-    loadingHistory.value = false;
+    if (props.sessionId === sid && historyReqSeq.get(sid) === mySeq) loadingHistory.value = false;
   }
 }
 
@@ -67,128 +115,8 @@ watch(
   { immediate: true }
 );
 
-// ============ 解析后端 WS 事件 ============
-watch(wsData, raw => {
-  if (!raw) return;
-  let payload: any;
-  try {
-    payload = JSON.parse(raw);
-  } catch {
-    return;
-  }
-
-  // 兼容旧协议（只有顶层 connection/chunk/error）：
-  if (payload.type === 'connection') return;
-
-  const eventType = payload.type;
-  if (!eventType) return;
-
-  // 事件归属：如果有正在等回复的业务会话，事件都归它；否则忽略（防止老 chat 路由事件污染）
-  const targetSid = currentAssistantSessionId.value ?? pendingBusinessSessionId.value;
-  if (!targetSid) return;
-
-  const data = payload.data || {};
-
-  switch (eventType) {
-    case 'start':
-      currentAssistantSessionId.value = targetSid;
-      break;
-
-    case 'chunk':
-      sessionBus.appendChunk(targetSid, String(data.delta || ''));
-      break;
-
-    case 'tool_call':
-      sessionBus.upsertToolCall(targetSid, {
-        toolUseId: String(data.toolUseId || ''),
-        tool: String(data.tool || 'tool'),
-        userFacingName: data.userFacingName,
-        summary: data.summary,
-        readOnly: Boolean(data.readOnly),
-        input: data.input,
-        status: 'running'
-      });
-      break;
-
-    case 'tool_progress': {
-      // 后端 publishToolProgress 的信封：{ toolUseId, progressType, message, payload }
-      // 我们只把 message 显示到对应工具卡片下方；payload 先不展开（留给后续调试面板）
-      const tid = String(data.toolUseId || '');
-      const text = String(data.message || data.progressType || '');
-      if (tid && text) sessionBus.updateToolProgress(targetSid, tid, text);
-      break;
-    }
-
-    case 'tool_result':
-      sessionBus.finishToolCall(
-        targetSid,
-        String(data.toolUseId || ''),
-        {
-          summary: data.summary,
-          preview: data.preview,
-          isError: Boolean(data.isError),
-          durationMs: Number(data.durationMs || 0),
-          meta: data.meta
-        },
-        Boolean(data.isError)
-      );
-      break;
-
-    case 'ask_user': {
-      // Agent 通过 AskUserQuestionTool 发起结构化反问
-      const q = String(data.question || '').trim();
-      if (q) {
-        sessionBus.setAskUser(targetSid, q, Array.isArray(data.options) ? data.options : [], payload.messageId);
-      }
-      break;
-    }
-
-    case 'todo':
-      // data.todos 是整份清单，整体替换
-      sessionBus.setTodos(targetSid, Array.isArray(data.todos) ? data.todos : []);
-      break;
-
-    case 'step_start':
-      sessionBus.setCurrentStep(targetSid, Number(data.step) || null);
-      break;
-
-    case 'step_end':
-      // step_end 不清 step，等到 completion 再清；但若这是最后一步且后端不发 completion 就兜底
-      // 目前 AgentRuntime 每一步都 start/end 配对，保留当前步号即可。
-      break;
-
-    case 'plan':
-      // 目前暂不单独渲染 plan 文本（LLM chunk 里通常已经有了），先忽略
-      break;
-
-    case 'completion':
-      sessionBus.completeAssistant(targetSid, data.finishReason);
-      pendingBusinessSessionId.value = null;
-      currentAssistantSessionId.value = null;
-      break;
-
-    case 'stopped':
-      sessionBus.completeAssistant(targetSid, 'stopped');
-      pendingBusinessSessionId.value = null;
-      currentAssistantSessionId.value = null;
-      break;
-
-    case 'error':
-      sessionBus.failAssistant(targetSid, String(data.message || '服务端错误'));
-      pendingBusinessSessionId.value = null;
-      currentAssistantSessionId.value = null;
-      break;
-
-    case 'rate_limit':
-      sessionBus.failAssistant(targetSid, `请求过于频繁，请 ${data.retryAfterSeconds || 0} 秒后再试`);
-      pendingBusinessSessionId.value = null;
-      currentAssistantSessionId.value = null;
-      break;
-
-    default:
-      break;
-  }
-});
+// 注：解析 WS 事件已经迁到 sessionBus.ensureWsWatcher()，组件不再单独 watch wsData，
+// 避免组件卸载（用户切走）后丢事件，导致重新进会话视频卡片消失 / 流式中断。
 
 // ============ 滚动到底 ============
 const scrollRef = ref<any>(null);
@@ -202,27 +130,43 @@ watch(() => [messages.value.length, messages.value[messages.value.length - 1]?.c
 // ============ 发送 ============
 async function handleSend() {
   const text = inputText.value.trim();
-  if (!text) return;
-  if (isSending.value) return; // 上一条还没收完先别发
+  if (!text && pendingAttachments.value.length === 0) return;
+  if (isSending.value || uploadingImages.value) return; // 上一条还没收完先别发
 
   if (connectionStatus.value !== 'OPEN') {
     window.$message?.warning('连接中，请稍等…');
     return;
   }
 
-  sessionBus.pushUser(props.sessionId, text);
+  const attachments = readyAttachments.value.map(item => ({
+    type: item.type,
+    objectKey: item.objectKey,
+    fileName: item.fileName,
+    mimeType: item.mimeType,
+    size: item.size,
+    url: item.url
+  }));
+  sessionBus.pushUser(props.sessionId, text, attachments);
   sessionBus.pushAssistantPending(props.sessionId);
-  pendingBusinessSessionId.value = props.sessionId;
+  sessionBus.markPending(props.sessionId);
 
   wsSend(
     JSON.stringify({
       type: 'chat',
       content: text,
+      attachments: attachments.map(item => ({
+        type: item.type,
+        objectKey: item.objectKey,
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+        size: item.size
+      })),
       sessionId: props.sessionId,
       projectId: props.projectId
     })
   );
   inputText.value = '';
+  resetAttachments();
   scrollToBottom();
 }
 
@@ -244,6 +188,50 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+function openImagePreview(
+  images: Array<Api.Session.Attachment | { url?: string | null; fileName?: string | null; mimeType?: string | null; type?: string | null }> | undefined,
+  index = 0
+) {
+  const list = (images || [])
+    .filter(item => Boolean(item.url) && isImageAttachment(item))
+    .map(item => ({
+      url: item.url,
+      fileName: item.fileName
+    }));
+  if (!list.length) return;
+  previewImages.value = list;
+  previewIndex.value = Math.min(Math.max(index, 0), list.length - 1);
+  previewVisible.value = true;
+}
+
+function isImageAttachment(attachment: { type?: string | null; mimeType?: string | null }) {
+  return String(attachment.mimeType || '').startsWith('image/') || String(attachment.type || '') === 'image';
+}
+
+function openAttachment(attachment: Api.Session.Attachment | undefined | null) {
+  if (!attachment?.url) return;
+  if (isImageAttachment(attachment)) return;
+  window.open(attachment.url, '_blank', 'noopener,noreferrer');
+}
+
+function openAttachmentImagePreview(attachments: Api.Session.Attachment[] | undefined, index: number) {
+  const list = attachments || [];
+  const imageIndex = list.slice(0, index + 1).filter(isImageAttachment).length - 1;
+  openImagePreview(list, imageIndex);
+}
+
+function attachmentLabel(attachment: { fileName?: string | null; mimeType?: string | null }) {
+  const fileName = String(attachment.fileName || '').toLowerCase();
+  const mimeType = String(attachment.mimeType || '').toLowerCase();
+  if (mimeType.includes('pdf') || fileName.endsWith('.pdf')) return 'PDF';
+  if (mimeType.includes('word') || fileName.endsWith('.doc') || fileName.endsWith('.docx')) return 'WORD';
+  if (mimeType.includes('sheet') || mimeType.includes('excel') || fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) return 'EXCEL';
+  if (mimeType.includes('csv') || fileName.endsWith('.csv')) return 'CSV';
+  if (mimeType.includes('markdown') || fileName.endsWith('.md')) return 'MD';
+  if (mimeType.includes('text') || fileName.endsWith('.txt')) return 'TXT';
+  return 'FILE';
+}
+
 function roleLabel(role: string) {
   if (role === 'user') return '你';
   if (role === 'assistant') return '小蜜蜂';
@@ -261,7 +249,7 @@ function handleAskUserOption(option: string) {
   sessionBus.markAskUserAnswered(props.sessionId);
   sessionBus.pushUser(props.sessionId, option);
   sessionBus.pushAssistantPending(props.sessionId);
-  pendingBusinessSessionId.value = props.sessionId;
+  sessionBus.markPending(props.sessionId);
   wsSend(
     JSON.stringify({
       type: 'chat',
@@ -368,14 +356,44 @@ function handleErrorAction(action: NonNullable<ErrorCodeHelp['action']>) {
             <div
               class="max-w-[80%] break-words rounded-10px px-14px py-10px text-14px leading-[1.7]"
               :class="[
-                msg.role === 'user' ? 'bg-primary-1 whitespace-pre-wrap dark:bg-#3a4a5e' : 'bg-#f3f4f6 dark:bg-#262a31'
+                msg.role === 'user' ? 'bg-primary-1 dark:bg-#3a4a5e' : 'bg-#f3f4f6 dark:bg-#262a31'
               ]"
             >
-              <span v-if="!msg.content && msg.status === 'pending'" class="text-stone-400">思考中…</span>
+              <span v-if="!msg.content && !msg.attachments?.length && msg.status === 'pending'" class="text-stone-400">思考中…</span>
               <template v-else-if="msg.role === 'assistant'">
-                <VueMarkdownIt :content="msg.content" />
+                <VueMarkdownIt v-if="msg.content" :content="msg.content" />
               </template>
-              <span v-else>{{ msg.content }}</span>
+              <span v-else-if="msg.content" class="whitespace-pre-wrap">{{ msg.content }}</span>
+              <div v-if="msg.attachments?.length" class="mt-3 flex flex-wrap gap-2">
+                <button
+                  v-for="(attachment, index) in msg.attachments"
+                  :key="`${msg.localId}-img-${index}`"
+                  type="button"
+                  class="block"
+                  @click="isImageAttachment(attachment) ? openAttachmentImagePreview(msg.attachments, index) : openAttachment(attachment)"
+                >
+                  <template v-if="isImageAttachment(attachment)">
+                    <img
+                      :src="attachment.url || undefined"
+                      :alt="attachment.fileName || 'image'"
+                      class="h-120px w-120px rounded-8px object-cover shadow-sm"
+                    />
+                  </template>
+                  <template v-else>
+                    <div class="flex h-120px w-160px flex-col items-start justify-between rounded-8px border border-#e5e7eb bg-white p-3 text-left shadow-sm dark:border-#2f3742 dark:bg-#20242b">
+                      <div class="rounded-6px bg-#f3f4f6 px-2 py-1 text-11px font-600 text-stone-600 dark:bg-#2a3038 dark:text-stone-200">
+                        {{ attachmentLabel(attachment) }}
+                      </div>
+                      <div class="line-clamp-2 text-13px text-stone-700 dark:text-stone-100">
+                        {{ attachment.fileName || '未命名附件' }}
+                      </div>
+                      <div class="text-11px text-stone-400">
+                        {{ fileSize(Number(attachment.size || 0)) }}
+                      </div>
+                    </div>
+                  </template>
+                </button>
+              </div>
               <span v-if="msg.status === 'streaming'" class="ml-1 animate-pulse">▌</span>
             </div>
 
@@ -404,6 +422,34 @@ function handleErrorAction(action: NonNullable<ErrorCodeHelp['action']>) {
                   class="pl-10px text-xs text-stone-400"
                 >
                   <span class="mr-1 animate-pulse">›</span>{{ call.progressText }}
+                </div>
+                <!-- xhs_video_analyze 专属富卡片：视频预览 + transcript 入口 -->
+                <div
+                  v-if="call.tool === 'xhs_video_analyze' && call.status === 'ok' && (call.result?.meta as any)?.videoUrl"
+                  class="rounded-8px b-1 b-#e5e7eb bg-white p-12px text-13px shadow-sm dark:b-#2f3742 dark:bg-#20242b"
+                >
+                  <div class="mb-8px flex items-center gap-2">
+                    <SvgIcon icon="solar:videocamera-record-bold-duotone" class="text-16px text-primary-500" />
+                    <span class="font-600">{{ (call.result?.meta as any)?.title || '小红书视频' }}</span>
+                    <NTag size="tiny" type="success" :bordered="false">已入库</NTag>
+                  </div>
+                  <video
+                    :src="(call.result?.meta as any)?.videoUrl"
+                    controls
+                    preload="metadata"
+                    class="w-full max-w-480px rounded-6px bg-black"
+                  />
+                  <div class="mt-8px flex flex-wrap items-center gap-3 text-xs">
+                    <a
+                      v-if="(call.result?.meta as any)?.transcriptUrl"
+                      :href="(call.result?.meta as any)?.transcriptUrl"
+                      target="_blank"
+                      class="text-primary-500 hover:underline"
+                    >
+                      📝 查看转写文本
+                    </a>
+                    <span class="text-stone-400">noteId: {{ (call.result?.meta as any)?.noteId }}</span>
+                  </div>
                 </div>
                 <!-- Phase 4b: 工具失败时展示 errorCode 徽章 + 帮助跳转 -->
                 <div
@@ -476,32 +522,141 @@ function handleErrorAction(action: NonNullable<ErrorCodeHelp['action']>) {
     </div>
 
     <!-- Input box -->
-    <div class="border-t b-#e5e7eb20 bg-#ffffff px-16px py-12px dark:b-#1f2937 dark:bg-#1b1d21">
+    <div
+      class="border-t b-#e5e7eb20 bg-#ffffff px-16px py-12px transition-colors dark:b-#1f2937 dark:bg-#1b1d21"
+      :class="dragActive ? 'bg-primary-50/70 dark:bg-#223041' : ''"
+      @dragenter="handleDragEnter"
+      @dragover="handleDragOver"
+      @dragleave="handleDragLeave"
+      @drop="handleDrop"
+    >
+      <input
+        ref="imageInputRef"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md"
+        multiple
+        class="hidden"
+        @change="handleImagePicked"
+      />
+      <div v-if="pendingAttachments.length || uploadingImages" class="mb-10px flex flex-wrap gap-3">
+          <div
+            v-for="attachment in pendingAttachments"
+            :key="attachment.localId"
+            class="relative w-110px overflow-hidden rounded-8px b b-#e5e7eb bg-#fafafa p-1 dark:b-#2f3742 dark:bg-#20242b"
+          >
+            <button
+              type="button"
+              class="block w-full"
+              @click="attachment.previewUrl
+                ? openImagePreview([{ url: attachment.uploaded?.url || attachment.previewUrl, fileName: attachment.fileName, mimeType: attachment.uploaded?.mimeType || attachment.sourceFile.type, type: attachment.uploaded?.type }], 0)
+                : openAttachment(attachment.uploaded)"
+            >
+              <template v-if="attachment.previewUrl">
+                <img
+                  :src="attachment.uploaded?.url || attachment.previewUrl"
+                  :alt="attachment.fileName"
+                  class="h-76px w-full rounded-6px object-cover"
+                />
+              </template>
+              <template v-else>
+                <div class="flex h-76px w-full items-center justify-center rounded-6px bg-#eef2f7 text-12px font-600 text-stone-500 dark:bg-#27303a dark:text-stone-200">
+                  {{ attachmentLabel(attachment) }}
+                </div>
+              </template>
+            </button>
+            <button
+              type="button"
+              class="absolute right-4px top-4px h-20px w-20px rounded-full bg-black/55 text-12px text-white"
+              @click.stop="removePendingAttachment(attachment.localId)"
+            >
+              ×
+            </button>
+            <div
+              v-if="attachment.status === 'uploading'"
+              class="absolute inset-x-6px bottom-28px rounded-6px bg-black/60 px-6px py-5px"
+            >
+              <div class="mb-4px text-[10px] text-white/90">上传中 {{ attachment.progress }}%</div>
+              <NProgress
+                type="line"
+                :show-indicator="false"
+                :percentage="attachment.progress"
+                :height="4"
+                status="success"
+                processing
+              />
+            </div>
+            <div
+              v-else-if="attachment.status === 'error'"
+              class="absolute inset-x-6px bottom-28px rounded-6px bg-red-950/78 px-6px py-5px text-[10px] text-white"
+            >
+              <div class="truncate">{{ attachment.errorMessage || '上传失败' }}</div>
+              <div class="mt-4px flex items-center gap-2">
+                <button type="button" class="text-primary-200 hover:underline" @click.stop="retryPendingAttachment(attachment.localId)">
+                  重试
+                </button>
+                <button type="button" class="text-white/80 hover:underline" @click.stop="removePendingAttachment(attachment.localId)">
+                  移除
+                </button>
+              </div>
+            </div>
+            <div
+              v-else
+              class="absolute left-4px top-4px rounded-full bg-emerald-600/85 px-6px py-2px text-[10px] text-white"
+            >
+              已就绪
+            </div>
+            <div class="truncate px-4px pt-1 text-11px text-stone-500">
+              {{ attachment.fileName }}
+            </div>
+          <div class="px-4px text-11px text-stone-400">
+            {{ fileSize(Number(attachment.size || 0)) }}
+          </div>
+        </div>
+      <div
+        v-if="uploadingImages"
+        class="flex h-110px w-110px items-center justify-center rounded-8px border border-dashed b-#cbd5e1 text-xs text-stone-400"
+      >
+          附件上传中…
+        </div>
+      </div>
       <textarea
         ref="inputRef"
         v-model="inputText"
-        placeholder="给小蜜蜂发送消息（Enter 发送 / Shift+Enter 换行）"
+        placeholder="给小蜜蜂发送消息，支持附带图片或文档（Enter 发送 / Shift+Enter 换行）"
         class="min-h-36px w-full resize-none b-none bg-transparent color-#333 caret-[rgb(var(--primary-color))] outline-none dark:color-#f1f1f1"
         rows="2"
         @keydown="handleKeydown"
+        @paste="handlePaste"
       />
       <div class="flex items-center justify-between pt-2">
         <span class="text-xs text-stone-400">
-          agent 会按需调用 list_skills / use_skill / creator_search / xhs_refresh_creator 等工具
+          {{
+            dragActive
+              ? '松手即可添加附件'
+              : hasBlockingUploads
+                ? '有附件仍在上传或失败，请先等待完成或重试'
+                : 'agent 会按需调用 list_skills / use_skill / creator_search / xhs_refresh_creator 等工具'
+          }}
         </span>
         <div class="flex items-center gap-2">
+          <NButton size="small" quaternary :disabled="uploadingImages || isSending" @click="openImagePicker">
+            <template #icon>
+              <SvgIcon icon="solar:gallery-wide-bold-duotone" />
+            </template>
+            附件
+          </NButton>
           <NButton v-if="isSending" size="small" type="error" @click="handleStop">停止</NButton>
-          <NButton
-            size="small"
-            type="primary"
-            :disabled="!inputText.trim() || isSending || connectionStatus !== 'OPEN'"
-            @click="handleSend"
-          >
+          <NButton size="small" type="primary" :disabled="!canSend" @click="handleSend">
             发送
           </NButton>
         </div>
       </div>
     </div>
+    <ChatImagePreviewModal
+      v-model:show="previewVisible"
+      :images="previewImages"
+      :start-index="previewIndex"
+    />
   </div>
 </template>
 

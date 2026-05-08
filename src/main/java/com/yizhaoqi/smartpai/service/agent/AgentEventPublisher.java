@@ -14,6 +14,7 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * WebSocket 端 Agent 事件的统一发射器。所有向前端推送的 Agent 事件（tool_call / chunk /
@@ -31,29 +32,54 @@ public class AgentEventPublisher {
     private static final Logger logger = LoggerFactory.getLogger(AgentEventPublisher.class);
 
     private final ObjectMapper objectMapper;
+    private final AgentLiveSnapshotService liveSnapshotService;
+    private final ConcurrentHashMap<String, Long> businessSessionByMessage = new ConcurrentHashMap<>();
 
-    public AgentEventPublisher(ObjectMapper objectMapper) {
+    public AgentEventPublisher(ObjectMapper objectMapper, AgentLiveSnapshotService liveSnapshotService) {
         this.objectMapper = objectMapper;
+        this.liveSnapshotService = liveSnapshotService;
+    }
+
+    private Long businessSessionId(String messageId) {
+        return messageId == null ? null : businessSessionByMessage.get(messageId);
+    }
+
+    public void registerBusinessSession(String messageId, Long chatSessionId) {
+        if (messageId != null && chatSessionId != null) {
+            businessSessionByMessage.put(messageId, chatSessionId);
+        }
+    }
+
+    public void releaseBusinessSession(String messageId) {
+        if (messageId != null) businessSessionByMessage.remove(messageId);
     }
 
     // ==================== 生命周期类事件 ====================
 
     public void publishStart(WebSocketSession session, String messageId) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.start(sid, messageId);
         send(session, AgentEventType.START, messageId, Map.of());
     }
 
     public void publishCompletion(WebSocketSession session, String messageId,
                                   String finishReason, String finalContent) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.clear(sid);
         send(session, AgentEventType.COMPLETION, messageId,
                 Map.of("finishReason", finishReason == null ? "stop" : finishReason,
                         "content", finalContent == null ? "" : finalContent));
     }
 
     public void publishStopped(WebSocketSession session, String messageId) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.clear(sid);
         send(session, AgentEventType.STOPPED, messageId, Map.of());
     }
 
     public void publishError(WebSocketSession session, String messageId, String error) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.clear(sid);
         send(session, AgentEventType.ERROR, messageId, Map.of("message", error == null ? "" : error));
     }
 
@@ -67,6 +93,8 @@ public class AgentEventPublisher {
 
     public void publishChunk(WebSocketSession session, String messageId, String delta) {
         if (delta == null || delta.isEmpty()) return;
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.appendChunk(sid, messageId, delta);
         send(session, AgentEventType.CHUNK, messageId, Map.of("delta", delta));
     }
 
@@ -75,10 +103,14 @@ public class AgentEventPublisher {
     }
 
     public void publishTodo(WebSocketSession session, String messageId, Object todos) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.recordTodos(sid, todos);
         send(session, AgentEventType.TODO, messageId, Map.of("todos", todos == null ? List.of() : todos));
     }
 
     public void publishStepStart(WebSocketSession session, String messageId, int stepNo) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.setStep(sid, messageId, stepNo);
         send(session, AgentEventType.STEP_START, messageId, Map.of("step", stepNo));
     }
 
@@ -90,6 +122,8 @@ public class AgentEventPublisher {
 
     public void publishToolCall(WebSocketSession session, String messageId, String toolUseId,
                                 Tool tool, JsonNode input) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.recordToolCall(sid, messageId, toolUseId, tool, input);
         ObjectNode data = objectMapper.createObjectNode();
         data.put("toolUseId", toolUseId);
         data.put("tool", tool.name());
@@ -102,6 +136,9 @@ public class AgentEventPublisher {
     }
 
     public void publishToolProgress(WebSocketSession session, String messageId, ToolProgress progress) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.recordToolProgress(sid, progress.toolUseId(),
+                progress.message() == null ? progress.type() : progress.message());
         ObjectNode data = objectMapper.createObjectNode();
         data.put("toolUseId", progress.toolUseId());
         data.put("progressType", progress.type());
@@ -119,20 +156,25 @@ public class AgentEventPublisher {
         data.put("summary", result.summary() == null ? "" : result.summary());
         data.put("durationMs", durationMs);
         // UI 预览：如果 data 是字符串或小对象就直接回显；大对象只回前若干字符摘要。
+        String preview;
         try {
-            String preview = previewOfData(result.data());
-            data.put("preview", preview);
+            preview = previewOfData(result.data());
         } catch (Exception ignored) {
-            data.put("preview", "");
+            preview = "";
         }
+        data.put("preview", preview);
         if (result.meta() != null && !result.meta().isEmpty()) {
             data.set("meta", objectMapper.valueToTree(result.meta()));
         }
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.recordToolResult(sid, toolUseId, toolName, result, durationMs, preview);
         send(session, AgentEventType.TOOL_RESULT, messageId, data);
     }
 
     public void publishAskUser(WebSocketSession session, String messageId,
                                String question, List<String> options) {
+        Long sid = businessSessionId(messageId);
+        if (sid != null) liveSnapshotService.recordAskUser(sid, question, options);
         ObjectNode data = objectMapper.createObjectNode();
         data.put("question", question == null ? "" : question);
         if (options != null) {
@@ -161,7 +203,13 @@ public class AgentEventPublisher {
         envelope.put("type", type);
         envelope.put("ts", System.currentTimeMillis());
         if (messageId != null) envelope.put("messageId", messageId);
-        envelope.put("sessionId", session.getId());
+        Long businessSessionId = messageId == null ? null : businessSessionByMessage.get(messageId);
+        if (businessSessionId != null) {
+            envelope.put("sessionId", businessSessionId);
+            envelope.put("wsSessionId", session.getId());
+        } else {
+            envelope.put("sessionId", session.getId());
+        }
         if (data instanceof JsonNode node) {
             envelope.set("data", node);
         } else {

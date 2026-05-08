@@ -140,6 +140,35 @@ public class XhsCookieController {
     }
 
     /**
+     * 明文回显当前 cookie / 聚光凭证。仅 ADMIN 可见，且只能看自己 org 的那条。
+     * <p>
+     * 动机：运维按照业务员给的 advertiserId/access_token 在前端录入后，重新打开编辑对话框时老版本
+     * 会把三个字段清空（"不覆盖现有 token" 语义），导致运维既看不到历史值，也没法"小改一下 token"，
+     * 只能整串重贴——这违背了"管理员界面就是给运维用的，明文可见是可以接受的"的产品定位。
+     * <p>
+     * 安全边界：
+     * <ul>
+     *   <li>路由本身挂在 {@code /api/v1/admin/**}，SecurityConfig 里强制 ADMIN role；</li>
+     *   <li>再叠加一层 {@code ownerOrgTag == primaryOrg} 过滤，避免 admin 越 org 偷看其他租户；</li>
+     *   <li>不写业务日志打印明文，只打 id/platform；避免明文漂到 ELK。</li>
+     * </ul>
+     */
+    @GetMapping("/{id}/plaintext")
+    public ResponseEntity<Object> revealPlaintext(@RequestHeader("Authorization") String auth,
+                                                  @PathVariable Long id) {
+        User u = resolveUser(auth);
+        XhsCookie row = service.findById(id, u.getPrimaryOrg()).orElse(null);
+        if (row == null) return notFound();
+        String plain = service.decryptFor(id, u.getPrimaryOrg()).orElse(null);
+        if (plain == null) return notFound();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", row.getId());
+        data.put("platform", row.getPlatform());
+        data.put("plaintext", plain);
+        return ok(data);
+    }
+
+    /**
      * 用该 cookie 实际调一次平台轻量 API 测活；失败不降权、不污染线上调度。
      *
      * 详见 {@link XhsCookieHealthService}：对 xhs_pc/creator/pgy/qianfan 发起 GET，

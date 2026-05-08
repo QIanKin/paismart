@@ -27,19 +27,37 @@ public class ModelProviderConfigService {
     public static final String SCOPE_LLM = "llm";
     public static final String SCOPE_EMBEDDING = "embedding";
     public static final String API_STYLE_OPENAI = "openai-compatible";
+    public static final String API_STYLE_RESPONSES = "responses";
 
     private final ModelProviderConfigRepository repository;
     private final SecretCryptoService secretCryptoService;
     private volatile ModelProviderSettingsView currentSettings;
 
-    @Value("${deepseek.api.url:https://api.deepseek.com/v1}")
+    /**
+     * 主 LLM 默认配置。
+     * <p>"deepseek" 历史沿用作为 default key，但配下来的实际地址 / 模型 / api key 完全可改：
+     * 想接硅基流动？就改 ${LLM_API_URL}=https://api.siliconflow.cn/v1 + ${LLM_API_MODEL}=deepseek-chat。
+     * 想接智谱（GLM）？${LLM_API_URL}=https://open.bigmodel.cn/api/paas/v4 + ${LLM_API_MODEL}=glm-4.5-air。
+     * 协议层就一种：OpenAI Chat Completions 兼容。
+     * 旧 ${DEEPSEEK_API_URL/KEY/MODEL} 仍兼容，作为 fallback。
+     */
+    @Value("${llm.api.url:${deepseek.api.url:https://api.deepseek.com/v1}}")
     private String deepSeekApiUrl;
 
-    @Value("${deepseek.api.key:}")
+    @Value("${llm.api.key:${deepseek.api.key:}}")
     private String deepSeekApiKey;
 
-    @Value("${deepseek.api.model:deepseek-chat}")
+    @Value("${llm.api.model:${deepseek.api.model:deepseek-chat}}")
     private String deepSeekModel;
+
+    @Value("${openai.api.url:http://38.244.14.228:23000/v1}")
+    private String openAiApiUrl;
+
+    @Value("${openai.api.key:sk-a4269f4019e0b2ee9a7def4d6f9fe66e}")
+    private String openAiApiKey;
+
+    @Value("${openai.api.model:gpt-5.4}")
+    private String openAiModel;
 
     @Value("${embedding.api.url:https://dashscope.aliyuncs.com/compatible-mode/v1}")
     private String embeddingApiUrl;
@@ -153,18 +171,32 @@ public class ModelProviderConfigService {
 
             WebClient client = builder.build();
             if (SCOPE_LLM.equals(normalizedScope)) {
-                Map<String, Object> payload = Map.of(
-                        "model", request.model(),
-                        "messages", List.of(Map.of("role", "user", "content", "ping")),
-                        "stream", false,
-                        "max_tokens", 1
-                );
-                client.post()
-                        .uri("/chat/completions")
-                        .bodyValue(payload)
-                        .retrieve()
-                        .bodyToMono(String.class)
-                        .block(Duration.ofSeconds(8));
+                if (API_STYLE_RESPONSES.equalsIgnoreCase(request.apiStyle())) {
+                    Map<String, Object> payload = Map.of(
+                            "model", request.model(),
+                            "input", "ping",
+                            "max_output_tokens", 1
+                    );
+                    client.post()
+                            .uri("/responses")
+                            .bodyValue(payload)
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .block(Duration.ofSeconds(15));
+                } else {
+                    Map<String, Object> payload = Map.of(
+                            "model", request.model(),
+                            "messages", List.of(Map.of("role", "user", "content", "ping")),
+                            "stream", false,
+                            "max_tokens", 1
+                    );
+                    client.post()
+                            .uri("/chat/completions")
+                            .bodyValue(payload)
+                            .retrieve()
+                            .bodyToMono(String.class)
+                            .block(Duration.ofSeconds(8));
+                }
             } else {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("model", request.model());
@@ -191,22 +223,33 @@ public class ModelProviderConfigService {
         this.currentSettings = mergeOverrides(buildDefaultSettings(), repository.findAll());
     }
 
+    /**
+     * 默认 provider 列表。
+     * <p>统一只保留 OpenAI-compatible（{@link #API_STYLE_OPENAI}）一种协议——
+     * 因为绝大多数厂商（DeepSeek / SiliconFlow / Qwen / 智谱 GLM / Moonshot / 本地 vLLM 代理）
+     * 都暴露这一接口；这种"一个协议管所有"的写法可以让模型配置页非常简单。
+     * <p>之前还存在的 OpenAI Responses-style 与一个 hardcoded 内部 IP 的 "openai" provider
+     * 已经被剔除——那是早期为了对接公司内部 OpenAI 转发服务做的临时硬编码，对开源版没意义；
+     * 如果用户真要接 OpenAI 官方 Responses API，可以通过 DB 显式配置一个新 provider。
+     * <p>"deepseek" 这个 key 只是默认入口，实际指向哪个 base_url / model 全部由 env 或前端覆盖。
+     */
     private ModelProviderSettingsView buildDefaultSettings() {
         ScopeSettingsView llm = new ScopeSettingsView(
                 SCOPE_LLM,
-                "deepseek",
+                "openai",
                 List.of(
-                        new ProviderConfigView("deepseek", "DeepSeek", API_STYLE_OPENAI, deepSeekApiUrl, deepSeekModel, null, true, true, hasValue(deepSeekApiKey), secretCryptoService.mask(deepSeekApiKey)),
-                        new ProviderConfigView("qwen", "Qwen", API_STYLE_OPENAI, "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-flash", null, true, false, false, ""),
-                        new ProviderConfigView("zhipu", "ZhipuAI", API_STYLE_OPENAI, "https://open.bigmodel.cn/api/paas/v4", "glm-4.5-air", null, true, false, false, "")
+                        new ProviderConfigView("deepseek", "DeepSeek / OpenAI-Compatible", API_STYLE_OPENAI, deepSeekApiUrl, deepSeekModel, null, true, false, hasValue(deepSeekApiKey), secretCryptoService.mask(deepSeekApiKey)),
+                        new ProviderConfigView("openai", "GPT / OpenAI-Compatible", API_STYLE_OPENAI, openAiApiUrl, openAiModel, null, true, true, hasValue(openAiApiKey), secretCryptoService.mask(openAiApiKey)),
+                        new ProviderConfigView("qwen", "Qwen (DashScope OpenAI 兼容)", API_STYLE_OPENAI, "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-flash", null, true, false, false, ""),
+                        new ProviderConfigView("zhipu", "智谱 GLM", API_STYLE_OPENAI, "https://open.bigmodel.cn/api/paas/v4", "glm-4.5-air", null, true, false, false, "")
                 )
         );
         ScopeSettingsView embedding = new ScopeSettingsView(
                 SCOPE_EMBEDDING,
                 "aliyun",
                 List.of(
-                        new ProviderConfigView("aliyun", "阿里云", API_STYLE_OPENAI, embeddingApiUrl, embeddingModel, embeddingDimension, true, true, hasValue(embeddingApiKey), secretCryptoService.mask(embeddingApiKey)),
-                        new ProviderConfigView("zhipu", "智谱AI", API_STYLE_OPENAI, "https://open.bigmodel.cn/api/paas/v4", "embedding-3", 2048, true, false, false, "")
+                        new ProviderConfigView("aliyun", "阿里云 DashScope", API_STYLE_OPENAI, embeddingApiUrl, embeddingModel, embeddingDimension, true, true, hasValue(embeddingApiKey), secretCryptoService.mask(embeddingApiKey)),
+                        new ProviderConfigView("zhipu", "智谱 AI", API_STYLE_OPENAI, "https://open.bigmodel.cn/api/paas/v4", "embedding-3", 2048, true, false, false, "")
                 )
         );
         return new ModelProviderSettingsView(llm, embedding);
@@ -263,6 +306,8 @@ public class ModelProviderConfigService {
             apiKey = secretCryptoService.decrypt(persisted.get().getApiKeyCiphertext());
         } else if ("deepseek".equals(provider.provider())) {
             apiKey = deepSeekApiKey;
+        } else if ("openai".equals(provider.provider())) {
+            apiKey = openAiApiKey;
         } else if ("aliyun".equals(provider.provider())) {
             apiKey = embeddingApiKey;
         }
@@ -391,6 +436,9 @@ public class ModelProviderConfigService {
                     if ("deepseek".equals(fallback.provider())) {
                         return secretCryptoService.encrypt(deepSeekApiKey);
                     }
+                    if ("openai".equals(fallback.provider())) {
+                        return secretCryptoService.encrypt(openAiApiKey);
+                    }
                     if ("aliyun".equals(fallback.provider())) {
                         return secretCryptoService.encrypt(embeddingApiKey);
                     }
@@ -457,6 +505,7 @@ public class ModelProviderConfigService {
             String apiBaseUrl,
             String model,
             String apiKey,
+            String apiStyle,
             Integer dimension
     ) {
     }

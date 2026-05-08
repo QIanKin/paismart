@@ -419,6 +419,7 @@ declare namespace Api {
     interface Message {
       role: 'user' | 'assistant';
       content: string;
+      attachments?: Session.Attachment[] | null;
       status?: 'pending' | 'loading' | 'finished' | 'error';
       timestamp?: string;
       conversationId?: string;
@@ -612,6 +613,11 @@ declare namespace Api {
       dryRun?: boolean;
       preview?: Array<Record<string, unknown>>;
     }
+
+    /** 历史枚举保留向后兼容。当前后端只走 TikHub 一条链路。 */
+    type RefreshSource = 'auto' | 'qiangua' | 'xhs_cookie';
+
+    type CreatorRefreshResult = XhsRefreshResult;
   }
 
   /**
@@ -627,10 +633,14 @@ declare namespace Api {
       name: string;
       description?: string | null;
       systemPrompt?: string | null;
-      enabledTools?: string | null; // json array
-      enabledSkills?: string | null; // json array
+      /** 后端实体列名 enabled_tools，但 Jackson 序列化的属性名是 enabledToolsJson；历史字段名也做兼容。 */
+      enabledTools?: string | null;
+      enabledToolsJson?: string | null;
+      enabledSkills?: string | null;
+      enabledSkillsJson?: string | null;
       templateCode?: string | null;
-      status?: 'ACTIVE' | 'ARCHIVED' | string;
+      /** 后端 Project.Status 小写；历史大写字段也做兼容。 */
+      status?: 'active' | 'archived' | 'ACTIVE' | 'ARCHIVED' | string;
       createdAt?: string | null;
       updatedAt?: string | null;
     }
@@ -706,6 +716,15 @@ declare namespace Api {
    * - 前端 WebSocket 发消息时把 id 放到 payload.sessionId，后端据此路由到对应上下文
    */
   namespace Session {
+    interface Attachment {
+      type: 'image' | string;
+      objectKey?: string | null;
+      fileName?: string | null;
+      mimeType?: string | null;
+      size?: number | null;
+      url?: string | null;
+    }
+
     /**
      * 会话业务类型，与后端 ChatSession.SessionType 对齐：
      * - GENERAL 通用对话
@@ -722,7 +741,11 @@ declare namespace Api {
       projectId?: number | null;
       orgTag?: string | null;
       title?: string | null;
-      status?: 'ACTIVE' | 'ARCHIVED' | string;
+      /** 后端小写枚举 active/archived（Jackson 默认序列化）；历史代码也有大写，做兼容。 */
+      status?: 'active' | 'archived' | 'ACTIVE' | 'ARCHIVED' | string;
+      /** 最近活跃时间（后端 ChatSession.lastActiveAt）。 */
+      lastActiveAt?: string | null;
+      /** @deprecated 历史字段名，后端已不再暴露，仅作兼容。 */
       lastMessageAt?: string | null;
       createdAt?: string | null;
       updatedAt?: string | null;
@@ -741,22 +764,96 @@ declare namespace Api {
       creatorId?: number | null;
     }
 
-    /** 一条历史消息（对应后端 AgentMessage 持久化）。 */
+    /**
+     * 一条历史消息，严格对应后端 {@code AgentMessage} 实体的 Jackson 序列化字段：
+     *  - assistant 的 tool_calls 以 **原始 JSON 字符串** 放在 {@code toolCallsJson}；
+     *  - tool 的结果以 **原始 JSON 字符串** 放在 {@code content}（{@code ToolExecutor.resultToLlmPayload}
+     *    的产物，带 summary/preview/isError/durationMs 等字段），对齐工具靠 {@code toolCallId}；
+     *  - 同一 turn 内所有消息共用 {@code messageGroupId}，前端按它合并显示，避免"每步一行"。
+     *
+     * 历史字段 {@code toolCalls} / {@code toolResult} 在旧版代码里出现过但后端从未发出，保留类型
+     * 只是向后兼容老缓存。
+     */
     interface Message {
       id?: number;
       sessionId?: number;
-      /** 'user' / 'assistant' / 'tool' / 'system' */
+      seq?: number;
+      messageGroupId?: string | null;
+      /** 'user' / 'assistant' / 'tool' / 'system'（后端 Role 枚举小写） */
       role: 'user' | 'assistant' | 'tool' | 'system' | string;
-      /** 纯文本正文（tool 消息可能为空） */
+      /** 纯文本正文；对于 tool 消息是 ToolExecutor 的 LLM payload（JSON 字符串） */
       content?: string | null;
-      /** assistant 想调用的工具 json 数组（function_call 结构） */
-      toolCalls?: Array<Record<string, any>> | null;
-      /** tool 消息对应哪一次 tool_call 的 id */
+      /** role=user 且带图片时的附件列表。 */
+      attachments?: Attachment[] | null;
+      /** assistant 的 tool_calls 原始 JSON 字符串（OpenAI function_call 数组） */
+      toolCallsJson?: string | null;
+      /** role=tool 对应的 tool_call_id，用来和上一条 assistant 的 tool_calls[i].id 对齐 */
       toolCallId?: string | null;
-      /** 结构化 tool 结果原始 json，tool 消息有 */
-      toolResult?: Record<string, any> | null;
+      /** role=tool 时的工具名（冗余字段） */
+      toolName?: string | null;
+      /** role=tool 时的执行耗时（ms） */
+      toolDurationMs?: number | null;
+      /**
+       * role=tool 时的 ToolResult.meta JSON 字符串。后端 Bug-fix 之后跟随 tool 消息一起落库，
+       * 让刷新历史也能恢复富卡片（如 xhs_video_analyze 的 videoUrl/transcriptUrl）。
+       */
+      toolMetaJson?: string | null;
       createdAt?: string | null;
+      /** @deprecated 旧版前端缓存字段；后端从未发出。 */
+      toolCalls?: Array<Record<string, any>> | null;
+      /** @deprecated 旧版前端缓存字段；后端从未发出。 */
+      toolResult?: Record<string, any> | null;
     }
+
+    /**
+     * 当前会话「正在进行中」的活体快照（runTurn 期间事件累积，runTurn 结束后清掉）。
+     * 与后端 {@code AgentLiveSnapshotService.LiveSnapshot} 字段一一对应。
+     */
+    interface LiveSnapshot {
+      sessionId: number;
+      messageId: string;
+      startedAt: number;
+      lastUpdatedAt: number;
+      /** running / completed / error / cancelled / stopped */
+      status: string;
+      /** assistant 已累计推送的 chunk 拼接 */
+      partialContent?: string | null;
+      currentStep?: number | null;
+      toolCalls?: LiveToolCall[];
+      todos?: any[];
+      askUser?: { question: string; options: string[]; askedAt: number } | null;
+    }
+
+    interface LiveToolCall {
+      toolUseId: string;
+      tool?: string | null;
+      userFacingName?: string | null;
+      readOnly?: boolean | null;
+      summary?: string | null;
+      input?: any;
+      /** running / ok / error */
+      status?: string | null;
+      progressText?: string | null;
+      preview?: string | null;
+      isError?: boolean | null;
+      durationMs?: number | null;
+      meta?: Record<string, unknown> | null;
+      startedAt?: number | null;
+      finishedAt?: number | null;
+    }
+  }
+
+  namespace AgentAsset {
+    interface Attachment {
+      type: 'image' | string;
+      objectKey: string;
+      fileName: string;
+      mimeType?: string | null;
+      size?: number | null;
+      url: string;
+    }
+
+    type Image = Attachment;
   }
 
   /**
@@ -770,21 +867,17 @@ declare namespace Api {
   namespace Xhs {
     /**
      * 统一凭证平台：
-     * - xhs_pc / xhs_creator / xhs_pgy / xhs_qianfan：基于浏览器 Cookie 的 Spider_XHS 抓取
+     * - xhs_pgy：蒲公英商单后台 Cookie，用于品牌侧 KOL 列表 / 粉丝画像
      * - xhs_spotlight：小红书聚光广告 MarketingAPI（OAuth2 access_token）
-     * - xhs_competitor：xhsCompetitorNote_website 接入（Supabase URL + key）
+     *
+     * 历史值（xhs_pc / xhs_creator / xhs_qianfan / xhs_competitor）已下线，
+     * 公开数据全部走 TikHub。仍出现是为了兼容老库里残留的数据。
      */
-    type Platform =
-      | 'xhs_pc'
-      | 'xhs_creator'
-      | 'xhs_pgy'
-      | 'xhs_qianfan'
-      | 'xhs_spotlight'
-      | 'xhs_competitor';
+    type Platform = 'xhs_pgy' | 'xhs_spotlight' | string;
     type Status = 'ACTIVE' | 'EXPIRED' | 'BANNED' | 'DISABLED';
 
     /** UI 侧的"数据源族"分组：在数据源中心页用于切 tab。 */
-    type DataSourceFamily = 'xhs_web' | 'xhs_spotlight' | 'xhs_competitor';
+    type DataSourceFamily = 'xhs_pgy' | 'xhs_spotlight' | 'xhs_tikhub';
 
     interface Cookie {
       id: number;
@@ -876,6 +969,17 @@ declare namespace Api {
       errorMessage: string;
       startedAt: string;
       finishedAt: string;
+    }
+
+    /**
+     * 管理员明文回显：对应后端 {@code GET /admin/xhs-cookies/{id}/plaintext}。
+     * 仅 ADMIN 可见，且只允许读自己 primaryOrg 名下的那条；响应里带 platform，供前端按平台
+     * 决定如何解析（聚光是一段 JSON，xhs_web 是 k=v;k=v 串）。
+     */
+    interface CookiePlaintext {
+      id: number;
+      platform: Platform;
+      plaintext: string;
     }
 
     /** /ping 连通性测试返回 —— 后端用当前 cookie 实际打一条平台轻量 API 验活。 */

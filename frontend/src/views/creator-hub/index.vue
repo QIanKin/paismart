@@ -1,6 +1,7 @@
 <script setup lang="tsx">
 import { computed, onMounted, reactive, ref } from 'vue';
 import {
+  NCard,
   NAvatar,
   NButton,
   NDataTable,
@@ -19,7 +20,7 @@ import {
   fetchAccountList,
   fetchAccountUpsert,
   fetchCustomFields,
-  fetchRefreshXhsAccount,
+  fetchRefreshCreatorAccount,
   fetchXhsCookieList
 } from '@/service/api';
 import { getAuthorization } from '@/service/request/shared';
@@ -73,6 +74,12 @@ const sortOptions = [
   { label: '近期更新优先', value: 'updatedAt:desc' },
   { label: '互动率 · 高 → 低', value: 'engagementRate:desc' },
   { label: '最新入库', value: 'id:desc' }
+];
+
+// 历史 source 字段保留向后兼容，但当前所有刷新都走 TikHub 公开链路
+const refreshSource = ref<Api.Creator.RefreshSource>('auto');
+const refreshSourceOptions = [
+  { label: 'TikHub 公开数据（默认）', value: 'auto' }
 ];
 
 const customFields = ref<Api.Creator.CustomField[]>([]);
@@ -181,6 +188,22 @@ function parseTags(raw?: string | null): string[] {
   }
 }
 
+function parseCustomFields(raw?: string | null): Record<string, any> {
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+function customText(row: Api.Creator.Account, key: string) {
+  const value = parseCustomFields(row.customFields)[key];
+  if (value === null || value === undefined || value === '') return '-';
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
+
 // 详情抽屉
 const detailVisible = ref(false);
 const detailLoading = ref(false);
@@ -224,24 +247,26 @@ async function handleUpsertSubmit(payload: Partial<Api.Creator.Account>) {
 // 自定义字段抽屉
 const customFieldVisible = ref(false);
 
-// 小红书一键刷新
+// 小红书一键刷新（统一走 TikHub）
 const refreshingIds = ref<Set<number>>(new Set());
-async function handleRefreshXhs(row: Api.Creator.Account) {
+
+async function handleRefreshBySource(row: Api.Creator.Account) {
   if (row.platform !== 'xhs') {
-    window.$message?.warning('暂不支持该平台的一键刷新');
-    return;
-  }
-  if (!row.platformUserId) {
-    window.$message?.warning('缺少 platformUserId，无法定位小红书用户');
+    window.$message?.warning('数据源切换刷新目前只支持小红书账号');
     return;
   }
   refreshingIds.value.add(row.id);
   try {
-    const { data, error } = await fetchRefreshXhsAccount(row.id, { limit: 30 });
+    const { data, error } = await fetchRefreshCreatorAccount(row.id, {
+      source: refreshSource.value,
+      limit: 30
+    });
     if (!error && data) {
-      window.$message?.success(
-        `已拉到 ${data.fetched} 条笔记：+${data.inserted ?? 0} / ${data.updated ?? 0} / ${data.skipped ?? 0}`
-      );
+      const inserted = Number((data as any).inserted ?? 0);
+      const updated = Number((data as any).updated ?? 0);
+      const skipped = Number((data as any).skipped ?? 0);
+      const fetched = Number((data as any).fetched ?? 0);
+      window.$message?.success(`刷新完成：抓到 ${fetched} 条，+${inserted} / ${updated} / ${skipped}`);
       load();
     }
   } finally {
@@ -268,7 +293,7 @@ async function handleBatchRefresh() {
     let ok = 0;
     let fail = 0;
     for (const id of ids) {
-      const { error } = await fetchRefreshXhsAccount(id, { limit: 30 });
+      const { error } = await fetchRefreshCreatorAccount(id, { source: refreshSource.value, limit: 30 });
       if (error) fail += 1;
       else ok += 1;
     }
@@ -385,6 +410,21 @@ const columns = computed<DataTableColumns<Api.Creator.Account>>(() => [
     }
   },
   {
+    key: 'xhsIdentity',
+    title: '小红书标识',
+    width: 220,
+    render: row => {
+      if (row.platform !== 'xhs') return <span class="text-stone-400">-</span>;
+      return (
+        <div class="flex-col text-xs">
+          <span>ID: {customText(row, 'redId')}</span>
+          <span class="text-stone-500">UID: {row.platformUserId || '-'}</span>
+          <span class="truncate text-stone-500">note: {customText(row, 'latestNoteId')}</span>
+        </div>
+      );
+    }
+  },
+  {
     key: 'categoryMain',
     title: '赛道',
     width: 140,
@@ -439,6 +479,22 @@ const columns = computed<DataTableColumns<Api.Creator.Account>>(() => [
     }
   },
   {
+    key: 'fansPortraitSummary',
+    title: '粉丝画像',
+    minWidth: 220,
+    render: row => {
+      if (row.platform !== 'xhs') return <span class="text-stone-400">-</span>;
+      const summary = customText(row, 'fansPortraitSummary');
+      return <span class="text-xs text-stone-600">{summary}</span>;
+    }
+  },
+  {
+    key: 'pgyPriceNote',
+    title: '蒲公英报价',
+    width: 160,
+    render: row => <span class="text-xs">{customText(row, 'pgyPriceNote')}</span>
+  },
+  {
     key: 'updatedAt',
     title: '最近更新',
     width: 160,
@@ -447,7 +503,7 @@ const columns = computed<DataTableColumns<Api.Creator.Account>>(() => [
   {
     key: 'operate',
     title: '操作',
-    width: 220,
+    width: 300,
     fixed: 'right',
     render: row => (
       <div class="flex gap-2">
@@ -463,7 +519,7 @@ const columns = computed<DataTableColumns<Api.Creator.Account>>(() => [
             quaternary
             type="warning"
             loading={refreshingIds.value.has(row.id)}
-            onClick={() => handleRefreshXhs(row)}
+            onClick={() => handleRefreshBySource(row)}
           >
             刷新
           </NButton>
@@ -531,6 +587,12 @@ onMounted(() => {
       <template #header-extra>
         <NFlex :size="8" align="center">
           <span v-if="checkedIds.length" class="text-xs text-stone-500">已选 {{ checkedIds.length }}</span>
+          <NSelect
+            v-model:value="refreshSource"
+            size="small"
+            class="w-62"
+            :options="refreshSourceOptions"
+          />
           <NButton
             v-if="checkedIds.length"
             size="small"

@@ -27,7 +27,12 @@ import {
   NTag
 } from 'naive-ui';
 import SvgIcon from '@/components/custom/svg-icon.vue';
-import { fetchXhsCookieCreate, fetchXhsCookieDelete, fetchXhsCookieUpdate } from '@/service/api';
+import {
+  fetchXhsCookieCreate,
+  fetchXhsCookieDelete,
+  fetchXhsCookieReveal,
+  fetchXhsCookieUpdate
+} from '@/service/api';
 
 interface Props {
   items: Api.Xhs.Cookie[];
@@ -37,7 +42,12 @@ const emit = defineEmits<{ (e: 'changed'): void }>();
 
 const visible = ref(false);
 const submitting = ref(false);
+const revealing = ref(false);
 const editingId = ref<number | null>(null);
+// 编辑态下记住初始凭证，保存时如果三个字段都没被改，就不下发 cookie 字段
+// （避免 "明文回显了 token 再点保存" 被当成 "覆盖"，多写一次密文）
+const initialCredential = ref({ advertiserId: '', accessToken: '', refreshToken: '' });
+const initialCredentialJson = ref<Record<string, unknown>>({});
 
 const form = reactive({
   advertiserId: '',
@@ -55,6 +65,8 @@ function resetForm() {
   form.accountLabel = '';
   form.priority = 10;
   form.note = '';
+  initialCredential.value = { advertiserId: '', accessToken: '', refreshToken: '' };
+  initialCredentialJson.value = {};
 }
 
 function openCreate() {
@@ -63,39 +75,72 @@ function openCreate() {
   visible.value = true;
 }
 
-function openEdit(row: Api.Xhs.Cookie) {
+async function openEdit(row: Api.Xhs.Cookie) {
   editingId.value = row.id;
   form.accountLabel = row.accountLabel ?? '';
   form.priority = row.priority ?? 10;
   form.note = row.note ?? '';
-  // 已入库的 credential 明文不下发；编辑时留空表示不改
+  // 先清掉，拉明文期间留空；失败时保持"留空 = 不覆盖"的兜底语义。
   form.advertiserId = '';
   form.accessToken = '';
   form.refreshToken = '';
+  initialCredential.value = { advertiserId: '', accessToken: '', refreshToken: '' };
   visible.value = true;
+  revealing.value = true;
+  try {
+    const { data, error } = await fetchXhsCookieReveal(row.id);
+    if (error || !data?.plaintext) return;
+    // 聚光凭证后端存的是 {"advertiserId","accessToken","refreshToken","expiresAt"} JSON
+    // 老记录若是手贴的 k=v 串（历史脏数据），这里回退成裸串塞进 accessToken 方便人工修复
+    let advertiserId = '';
+    let accessToken = '';
+    let refreshToken = '';
+    try {
+      const parsed = JSON.parse(data.plaintext) as Record<string, unknown>;
+      initialCredentialJson.value = parsed;
+      advertiserId = String(parsed.advertiserId ?? parsed.advertiser_id ?? '');
+      accessToken = String(parsed.accessToken ?? parsed.access_token ?? '');
+      refreshToken = String(parsed.refreshToken ?? parsed.refresh_token ?? '');
+    } catch {
+      accessToken = data.plaintext;
+    }
+    form.advertiserId = advertiserId;
+    form.accessToken = accessToken;
+    form.refreshToken = refreshToken;
+    initialCredential.value = { advertiserId, accessToken, refreshToken };
+  } finally {
+    revealing.value = false;
+  }
 }
 
 async function handleSubmit() {
-  // 编辑态且没填任何新凭证 → 只改 accountLabel/priority/note
-  const hasNewCred = form.advertiserId.trim() || form.accessToken.trim() || form.refreshToken.trim();
-  if (!editingId.value && !hasNewCred) {
+  const advertiserId = form.advertiserId.trim();
+  const accessToken = form.accessToken.trim();
+  const refreshToken = form.refreshToken.trim();
+  const hasAnyCred = Boolean(advertiserId || accessToken || refreshToken);
+  if (!editingId.value && !hasAnyCred) {
     window.$message?.warning('新增时 advertiserId / accessToken 至少要填一个');
     return;
   }
   submitting.value = true;
   try {
     if (editingId.value != null) {
-      // 仅当本次填了新凭证才覆盖 cookie
+      // 编辑态：本次相较拉到的明文"有变化"才覆盖 cookie，避免重复加密写入、触发 failCount=0 的副作用
+      const changed =
+        advertiserId !== initialCredential.value.advertiserId ||
+        accessToken !== initialCredential.value.accessToken ||
+        refreshToken !== initialCredential.value.refreshToken;
       const payload: Api.Xhs.CookieUpdatePayload = {
-        accountLabel: form.accountLabel.trim() || null,
+        accountLabel: form.accountLabel.trim(),
         priority: form.priority ?? null,
-        note: form.note.trim() || null
+        note: form.note.trim()
       };
-      if (hasNewCred) {
+      if (changed && hasAnyCred) {
         payload.cookie = JSON.stringify({
-          advertiserId: form.advertiserId.trim(),
-          accessToken: form.accessToken.trim(),
-          refreshToken: form.refreshToken.trim()
+          ...initialCredentialJson.value,
+          advertiserId,
+          accessToken,
+          refreshToken
         });
       }
       const { error } = await fetchXhsCookieUpdate(editingId.value, payload);
@@ -106,15 +151,15 @@ async function handleSubmit() {
       }
     } else {
       const cookie = JSON.stringify({
-        advertiserId: form.advertiserId.trim(),
-        accessToken: form.accessToken.trim(),
-        refreshToken: form.refreshToken.trim()
+        advertiserId,
+        accessToken,
+        refreshToken
       });
       const { error } = await fetchXhsCookieCreate({
         platform: 'xhs_spotlight',
         cookie,
-        accountLabel: form.accountLabel.trim() || null,
-        note: form.note.trim() || null,
+        accountLabel: form.accountLabel.trim(),
+        note: form.note.trim(),
         priority: form.priority ?? null
       });
       if (!error) {
@@ -268,16 +313,22 @@ const columns = computed<DataTableColumns<Api.Xhs.Cookie>>(() => [
       :mask-closable="false"
       class="w-580px!"
     >
+      <NAlert v-if="editingId" type="info" size="small" :bordered="false" class="mb-10px">
+        <span v-if="revealing">正在从后端拉取明文凭证…</span>
+        <span v-else>
+          下方三项已按管理员权限回显为 <b>明文</b>。改动后保存会覆盖密文；未改动则仅更新备注/优先级。
+        </span>
+      </NAlert>
       <NForm :model="form" label-placement="left" :label-width="110" mt-10>
         <NFormItem label="广告主 ID">
-          <NInput v-model:value="form.advertiserId" placeholder="聚光 advertiserId，数字" />
+          <NInput v-model:value="form.advertiserId" :placeholder="revealing ? '正在拉取…' : '聚光 advertiserId，数字'" />
         </NFormItem>
         <NFormItem label="access_token">
           <NInput
             v-model:value="form.accessToken"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 4 }"
-            :placeholder="editingId ? '留空 = 不覆盖现有 token' : '从 OAuth AccessToken 接口拿到'"
+            :placeholder="editingId ? (revealing ? '正在拉取…' : '直接编辑此处即可覆盖') : '从 OAuth AccessToken 接口拿到'"
           />
         </NFormItem>
         <NFormItem label="refresh_token">
@@ -285,7 +336,7 @@ const columns = computed<DataTableColumns<Api.Xhs.Cookie>>(() => [
             v-model:value="form.refreshToken"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 4 }"
-            :placeholder="editingId ? '留空 = 不覆盖' : '过期后用它换新的 access_token'"
+            :placeholder="editingId ? (revealing ? '正在拉取…' : '直接编辑此处即可覆盖') : '过期后用它换新的 access_token'"
           />
         </NFormItem>
         <NFormItem label="账号备注">

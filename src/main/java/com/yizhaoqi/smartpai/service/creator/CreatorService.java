@@ -157,7 +157,15 @@ public class CreatorService {
         } else if (!a.getOwnerOrgTag().equals(req.ownerOrgTag())) {
             throw new IllegalArgumentException("账号已存在且属于其他租户");
         }
-        if (req.creatorId() != null) a.setCreatorId(req.creatorId());
+        if (req.creatorId() != null) {
+            // 租户越权防御：禁止把账号绑定到不属于当前 org 的 Creator。
+            Creator owner = creatorRepo.findById(req.creatorId())
+                    .orElseThrow(() -> new IllegalArgumentException("creator 不存在: " + req.creatorId()));
+            if (!req.ownerOrgTag().equals(owner.getOwnerOrgTag())) {
+                throw new IllegalArgumentException("creator #" + req.creatorId() + " 属于其他租户，禁止绑定");
+            }
+            a.setCreatorId(req.creatorId());
+        }
         if (req.handle() != null) a.setHandle(req.handle());
         if (req.displayName() != null) a.setDisplayName(req.displayName());
         if (req.avatarUrl() != null) a.setAvatarUrl(req.avatarUrl());
@@ -196,7 +204,10 @@ public class CreatorService {
                 ps.add(cb.or(
                         cb.like(cb.coalesce(root.get("displayName"), ""), like),
                         cb.like(cb.coalesce(root.get("handle"), ""), like),
-                        cb.like(cb.coalesce(root.get("bio"), ""), like)));
+                        cb.like(cb.coalesce(root.get("bio"), ""), like),
+                        cb.like(cb.coalesce(root.get("platformUserId"), ""), like),
+                        cb.like(cb.coalesce(root.get("homepageUrl"), ""), like),
+                        cb.like(cb.coalesce(root.get("customFieldsJson"), ""), like)));
             }
             if (q.categoryMain() != null && !q.categoryMain().isBlank()) {
                 ps.add(cb.equal(root.get("categoryMain"), q.categoryMain()));

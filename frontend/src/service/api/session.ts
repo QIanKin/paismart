@@ -54,6 +54,18 @@ export function fetchSessionMessages(id: number) {
   return request<Api.Session.Message[]>({ url: `/agent/sessions/${id}/messages` });
 }
 
+/**
+ * 拉当前会话「正在进行中」的 turn 快照（partial assistant + 进行中工具卡片）。
+ *
+ * <p>用于「用户切走或刷新后再回来」场景：先 {@link fetchSessionMessages} 拉历史（已 appendTurn 的内容），
+ * 再调本接口把仍在生成中的部分拼到列表尾。后续 chunk 通过既有 WS 长连接继续推。
+ *
+ * <p>无活跃 turn 时后端返回 {@code data: null}。
+ */
+export function fetchSessionLive(id: number) {
+  return request<Api.Session.LiveSnapshot | null>({ url: `/agent/sessions/${id}/live` });
+}
+
 export function fetchSessionRename(id: number, title: string) {
   return request<Api.Session.Item>({
     url: `/agent/sessions/${id}`,

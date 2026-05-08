@@ -94,6 +94,8 @@ class SystemStatusToolTest {
     @Test
     void cdpEndpointBlankIsFlagged() throws Exception {
         ReflectionTestUtils.setField(tool, "cdpEndpoint", "");
+        // 生产代码只在 browserMode=external 且 cdp-endpoint 空时才告警；test 模拟这种环境。
+        ReflectionTestUtils.setField(tool, "browserMode", "external");
         when(cookies.list("acme")).thenReturn(Collections.emptyList());
         when(cookies.list("default")).thenReturn(Collections.emptyList());
         when(skills.listVisible("acme")).thenReturn(Collections.emptyList());

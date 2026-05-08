@@ -62,7 +62,16 @@ async function loadProject() {
   }
 }
 
-watch(projectId, loadProject, { immediate: true });
+watch(
+  projectId,
+  (next, prev) => {
+    if (next !== prev) {
+      activeSessionId.value = null;
+    }
+    loadProject();
+  },
+  { immediate: true }
+);
 
 function parseList(raw?: string | null | string[]): string[] {
   if (!raw) return [];
@@ -80,6 +89,11 @@ function projectField(name: 'enabledTools' | 'enabledSkills'): string | string[]
   const p = project.value as (Api.Project.Item & { enabledToolsJson?: string; enabledSkillsJson?: string }) | null;
   if (!p) return null;
   return (p as any)[name] ?? (p as any)[`${name}Json`] ?? null;
+}
+
+/** 项目是否处于归档态——后端序列化为小写 "archived"，也容忍历史大写数据。 */
+function isArchived(p?: Api.Project.Item | null): boolean {
+  return !!p && String(p.status || '').toLowerCase() === 'archived';
 }
 
 const tools = computed(() => parseList(projectField('enabledTools')));
@@ -121,10 +135,10 @@ async function openSessionFromRoster(creatorId: number, type: Api.Session.Sessio
               <NTag
                 v-if="project"
                 size="tiny"
-                :type="project.status === 'ARCHIVED' ? 'default' : 'success'"
+                :type="isArchived(project) ? 'default' : 'success'"
                 :bordered="false"
               >
-                {{ project.status === 'ARCHIVED' ? '已归档' : '进行中' }}
+                {{ isArchived(project) ? '已归档' : '进行中' }}
               </NTag>
             </div>
             <div class="truncate text-13px text-stone-500">
@@ -229,8 +243,8 @@ async function openSessionFromRoster(creatorId: number, type: Api.Session.Sessio
               </div>
               <div class="flex gap-2">
                 <span class="w-80px shrink-0 text-stone-500">状态</span>
-                <NTag size="tiny" :bordered="false" :type="project?.status === 'ARCHIVED' ? 'default' : 'success'">
-                  {{ project?.status || 'ACTIVE' }}
+                <NTag size="tiny" :bordered="false" :type="isArchived(project) ? 'default' : 'success'">
+                  {{ isArchived(project) ? '已归档' : '进行中' }}
                 </NTag>
               </div>
             </div>

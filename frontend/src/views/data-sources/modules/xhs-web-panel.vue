@@ -1,14 +1,12 @@
 <script setup lang="tsx">
 /**
- * 小红书 · 网页登录凭证面板（Spider_XHS 通道）。
+ * 蒲公英 (PGY) · Cookie 池面板。
  *
- * 2026-04-21 改造要点：
- *  - 顶部主按钮 = 「扫码登录采集」：点一下 → 手机扫码 → 四个平台 cookie 同时入池
- *  - 手动录入降级为次要按钮，原 Modal 保留作为扫码不可用时的兜底
- *  - 「一键浏览器 bookmarklet」折叠到手动录入 Modal 内的可展开区，不再占首屏
- *  - 每行新增 「测试」按钮 = 调后端 /ping 打一条轻量 API 验活
+ * <p>当前架构下 Spider_XHS 老链路已下线，公开数据走 TikHub。本面板只剩一个 platform：
+ * {@code xhs_pgy}（蒲公英商单后台 cookie），用于 KOL 列表 / 粉丝画像 / 报价等品牌侧能力。
  *
- * 此面板管理 platform ∈ {xhs_pc, xhs_creator, xhs_pgy, xhs_qianfan}。
+ * <p>顶部主按钮 = 「扫码登录采集」：手机扫码后写入 xhs_pgy cookie。
+ * 手动录入作为兜底。每行有「测试」按钮调 ping 接口验活。
  */
 import { computed, h, nextTick, reactive, ref, watch } from 'vue';
 import type { DataTableColumns, FormRules, PaginationProps } from 'naive-ui';
@@ -35,6 +33,7 @@ import {
   fetchXhsCookieCreate,
   fetchXhsCookieDelete,
   fetchXhsCookiePing,
+  fetchXhsCookieReveal,
   fetchXhsCookieUpdate
 } from '@/service/api';
 import QrLoginModal from './_shared/qr-login-modal.vue';
@@ -69,10 +68,7 @@ interface CookieFormModel {
 }
 
 const platformLabels: Record<string, string> = {
-  xhs_pc: '小红书 PC 主站',
-  xhs_creator: '创作者中心',
-  xhs_pgy: '蒲公英商单后台',
-  xhs_qianfan: '千帆品牌后台'
+  xhs_pgy: '蒲公英商单后台'
 };
 
 const statusLabels: Record<Api.Xhs.Status, { label: string; type: 'success' | 'error' | 'warning' | 'default' }> = {
@@ -91,14 +87,18 @@ const statusOptions = (Object.keys(statusLabels) as Api.Xhs.Status[]).map(s => (
 const qrVisible = ref(false);
 const manualVisible = ref(false);
 const submitting = ref(false);
+const revealing = ref(false);
 const editingId = ref<number | null>(null);
+// 编辑态下：打开弹窗时从后端解密拉到的原始 cookie 串。保存时会用它判断用户是否真的改过 cookie，
+// 没改就不下发 cookie 字段，避免重复加密写入。
+const initialCookie = ref('');
 
 const { formRef, validate, restoreValidation } = useNaiveForm();
 const { defaultRequiredRule } = useFormRules();
 
 function createDefaultModel(): CookieFormModel {
   return {
-    platform: 'xhs_pc',
+    platform: 'xhs_pgy',
     accountLabel: '',
     cookie: '',
     note: '',
@@ -133,7 +133,7 @@ const rules = ref<FormRules>({
         const keys = parseCookieKeys(value);
         return REQUIRED_COOKIE_FIELDS.every(n => keys.has(n));
       },
-      message: `Cookie 缺少：${REQUIRED_COOKIE_FIELDS.join(' / ')}（Spider_XHS 必须）`,
+      message: `Cookie 缺少：${REQUIRED_COOKIE_FIELDS.join(' / ')}（蒲公英必须）`,
       trigger: ['blur']
     }
   ]
@@ -342,7 +342,7 @@ function openManualCreate() {
   nextTick(() => restoreValidation());
 }
 
-function openEditDialog(row: Api.Xhs.Cookie) {
+async function openEditDialog(row: Api.Xhs.Cookie) {
   editingId.value = row.id;
   model.value = {
     platform: row.platform,
@@ -352,8 +352,20 @@ function openEditDialog(row: Api.Xhs.Cookie) {
     priority: row.priority ?? 10,
     status: row.status
   };
+  initialCookie.value = '';
   manualVisible.value = true;
   nextTick(() => restoreValidation());
+  // 管理员页：编辑态自动把密文解密回显，方便运维肉眼核对 / 手改。
+  revealing.value = true;
+  try {
+    const { data, error } = await fetchXhsCookieReveal(row.id);
+    if (!error && data?.plaintext) {
+      model.value.cookie = data.plaintext;
+      initialCookie.value = data.plaintext;
+    }
+  } finally {
+    revealing.value = false;
+  }
 }
 
 async function handleSubmit() {
@@ -361,10 +373,13 @@ async function handleSubmit() {
   submitting.value = true;
   try {
     if (isEditing.value && editingId.value != null) {
+      const nextCookie = model.value.cookie?.trim() || '';
+      // 只有真的改了 cookie 才下发 cookie 字段，避免"只是看了一眼"也触发一次加密 + 重置 failCount
+      const cookieChanged = nextCookie.length > 0 && nextCookie !== initialCookie.value.trim();
       const { error } = await fetchXhsCookieUpdate(editingId.value, {
-        cookie: model.value.cookie?.trim() || null,
-        accountLabel: model.value.accountLabel?.trim() || null,
-        note: model.value.note?.trim() || null,
+        cookie: cookieChanged ? nextCookie : null,
+        accountLabel: model.value.accountLabel?.trim() ?? '',
+        note: model.value.note?.trim() ?? '',
         priority: model.value.priority ?? null,
         status: model.value.status
       });
@@ -377,8 +392,8 @@ async function handleSubmit() {
       const { error } = await fetchXhsCookieCreate({
         platform: model.value.platform,
         cookie: model.value.cookie!.trim(),
-        accountLabel: model.value.accountLabel?.trim() || null,
-        note: model.value.note?.trim() || null,
+        accountLabel: model.value.accountLabel?.trim() ?? '',
+        note: model.value.note?.trim() ?? '',
         priority: model.value.priority ?? null
       });
       if (!error) {
@@ -435,10 +450,10 @@ async function copyBookmarklet() {
             <div class="flex flex-auto items-center gap-3">
               <div class="text-28px">📱</div>
               <div class="flex-col gap-2px">
-                <div class="text-15px font-semibold">扫码登录，一次采齐 4 个平台 Cookie</div>
+                <div class="text-15px font-semibold">扫码登录采集蒲公英 Cookie</div>
                 <div class="text-12px text-stone-500 leading-relaxed">
-                  后端会无头打开 Chromium，显示小红书登录二维码；你用手机扫一扫确认即可。
-                  主站 / 创作者 / 蒲公英 / 千帆 四个平台的 cookie 会自动入池、加密存储、按 source=QR_LOGIN 标记。
+                  后端会无头打开 Chromium，显示蒲公英商单后台登录二维码；你用手机扫一扫确认即可，
+                  cookie 会自动入池、加密存储，按 source=QR_LOGIN 标记。
                 </div>
               </div>
             </div>
@@ -454,13 +469,13 @@ async function copyBookmarklet() {
             <span class="text-13px font-semibold">蒲公英（xhs_pgy）只支持"品牌主/机构"账号</span>
           </template>
           <div class="text-12px text-stone-600 dark:text-stone-400 leading-relaxed">
-            Spider_XHS 的蒲公英接口只对已在
+            蒲公英 brand-side 接口只对已在
             <NButton text tag="a" type="primary" href="https://pgy.xiaohongshu.com/" target="_blank">
               pgy.xiaohongshu.com
             </NButton>
             开通"品牌主 / 机构"资质的账号有效。用普通博主 / 个人号扫码虽然能存下 cookie，但调
             <code>xhs_fetch_pgy_kol</code> / <code>xhs_pgy_kol_detail</code> 会全部挂。
-            不确定当前账号是否合格，让 AI 调一下 <code>xhs_pgy_whoami</code> 工具自测。
+            不确定当前账号是否合格，让 AI 调一下 <code>xhs_pgy_whoami</code> 自测。
           </div>
         </NAlert>
 
@@ -497,19 +512,23 @@ async function copyBookmarklet() {
         />
 
         <!-- SOP 文档（保留但简化） -->
-        <NDivider>AI 会怎么用这些凭证</NDivider>
+        <NDivider>AI 会怎么用这些 Cookie</NDivider>
         <NCard size="small" :bordered="false" content-style="padding: 14px 16px">
           <div class="text-12px leading-relaxed text-stone-600 dark:text-stone-300">
             <p class="mb-2">
-              当你在会话里让 agent 调用 <code class="font-mono">xhs_refresh_creator</code> /
-              <code class="font-mono">use_skill(xhs-user-notes)</code> /
-              <code class="font-mono">creator_search</code> 等工具时，后端会按「priority 高、成功率高、最近没用过」
-              的策略从池里挑一条 cookie 塞给 Spider_XHS 脚本，调用结束会更新成功/失败计数。
+              当 agent 调用 <code class="font-mono">xhs_fetch_pgy_kol</code> /
+              <code class="font-mono">xhs_pgy_kol_detail</code> /
+              <code class="font-mono">xhs_pgy_whoami</code> 时，后端会按「priority 高、成功率高、最近没用过」
+              的策略从池里挑一条 PGY cookie 塞给 BrowserSkillRunner，调用结束会更新成功/失败计数。
             </p>
             <p>
               连续失败 5 次会自动标记为
               <NTag size="tiny" type="warning" class="mx-1">EXPIRED</NTag>
-              ；重新扫码登录就能覆盖——同 `accountLabel` 的记录会被覆盖而不是新增。
+              ；重新扫码登录就能覆盖——同 <code>accountLabel</code> 的记录会被覆盖而不是新增。
+            </p>
+            <p class="mt-2 text-stone-500">
+              注：博主公开数据（笔记/搜索/视频/评论/热榜）已统一走 TikHub 公开 API，<b>不再消耗 cookie 池</b>，
+              所以这里只需维护品牌主/机构账号即可。
             </p>
           </div>
         </NCard>
@@ -528,6 +547,15 @@ async function copyBookmarklet() {
       :mask-closable="false"
       class="w-640px!"
     >
+      <NAlert v-if="isEditing" type="info" size="small" :bordered="false" class="mb-10px">
+        <span v-if="revealing">正在从后端拉取明文 Cookie…</span>
+        <span v-else-if="initialCookie">
+          下方已按管理员权限回显为 <b>明文</b>，可直接修改。未改动则不会覆盖原密文（不会重置成功/失败计数）。
+        </span>
+        <span v-else>
+          后端没有返回明文（可能是历史遗留的脏数据）。如需更换 cookie，请直接粘贴新的完整串。
+        </span>
+      </NAlert>
       <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="90" mt-10>
         <NFormItem label="平台" path="platform">
           <NSelect
@@ -547,7 +575,9 @@ async function copyBookmarklet() {
               type="textarea"
               :placeholder="
                 isEditing
-                  ? '留空 = 不覆盖现有 cookie；粘贴新完整串则覆盖'
+                  ? revealing
+                    ? '正在从后端解密当前凭证，请稍候…'
+                    : '下方为当前存储的明文，可直接编辑后点保存'
                   : '示例：a1=19a3e1ce...; web_session=0400...; webId=06f9b7f7...; xsecappid=xhs-pc-web'
               "
               :autosize="{ minRows: 4, maxRows: 10 }"

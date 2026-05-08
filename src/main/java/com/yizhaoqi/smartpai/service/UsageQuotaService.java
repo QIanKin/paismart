@@ -2,8 +2,10 @@ package com.yizhaoqi.smartpai.service;
 
 import com.yizhaoqi.smartpai.config.UsageQuotaProperties;
 import com.yizhaoqi.smartpai.exception.RateLimitExceededException;
+import com.yizhaoqi.smartpai.service.agent.TokenCounter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -31,10 +33,20 @@ public class UsageQuotaService {
 
     protected final StringRedisTemplate stringRedisTemplate;
     protected final UsageQuotaProperties properties;
+    /**
+     * 精确 tokenizer。可选：当 Spring 启动时注入；测试环境/纯 ratio 模式下保持为 null
+     * → 退化到 {@link #legacyEstimate(String)} 字符比例算法。
+     */
+    private TokenCounter tokenCounter;
 
     public UsageQuotaService(StringRedisTemplate stringRedisTemplate, UsageQuotaProperties properties) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.properties = properties;
+    }
+
+    @Autowired(required = false)
+    public void setTokenCounter(TokenCounter tokenCounter) {
+        this.tokenCounter = tokenCounter;
     }
 
     public TokenReservation reserveLlmTokens(String userId, int estimatedPromptTokens, int maxCompletionTokens) {
@@ -272,16 +284,23 @@ public class UsageQuotaService {
         if (text == null || text.isBlank()) {
             return 0;
         }
+        TokenCounter tc = this.tokenCounter;
+        if (tc != null) {
+            // jtokkit 路径：cl100k/o200k 真分词。中文/中英混排误差通常在 ±5% 内，
+            // 比之前的字符比例估算（误差 ±30%）显著精确。
+            return tc.countText(text);
+        }
+        return legacyEstimate(text);
+    }
 
+    /** 旧的字符比例估算，仅在测试或 TokenCounter 缺失时使用。 */
+    private static int legacyEstimate(String text) {
         int ascii = 0;
         int cjk = 0;
         int other = 0;
-
         for (int i = 0; i < text.length(); i++) {
             char current = text.charAt(i);
-            if (Character.isWhitespace(current)) {
-                continue;
-            }
+            if (Character.isWhitespace(current)) continue;
 
             Character.UnicodeScript script = Character.UnicodeScript.of(current);
             if (script == Character.UnicodeScript.HAN
@@ -295,7 +314,6 @@ public class UsageQuotaService {
                 other++;
             }
         }
-
         double estimated = ascii * ASCII_TOKEN_RATIO + cjk * CJK_TOKEN_RATIO + other * OTHER_TOKEN_RATIO + 12;
         return Math.max(1, (int) Math.ceil(estimated));
     }

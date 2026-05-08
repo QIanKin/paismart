@@ -67,21 +67,85 @@ def _price_note(price_info) -> str | None:
         return str(price_info)
 
 
-def _snapshot(summary: dict, notes_rate: dict) -> dict:
+def _resp_ok(resp: Any) -> bool:
+    if not isinstance(resp, dict):
+        return False
+    if resp.get("success") is False:
+        return False
+    code = resp.get("code")
+    return code in (None, 0, "0")
+
+
+def _resp_error(resp: Any) -> str | None:
+    if _resp_ok(resp):
+        return None
+    if not isinstance(resp, dict):
+        return f"invalid_response_type:{type(resp).__name__}"
+    return f"api code={resp.get('code')} msg={resp.get('msg') or resp.get('message')}"
+
+
+def _top_bucket(items, *label_keys: str) -> tuple[str | None, float | None]:
+    if not isinstance(items, list):
+        return None, None
+    best = None
+    best_percent = None
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        percent = _float(item.get("percent"))
+        if percent is None:
+            continue
+        if best_percent is None or percent > best_percent:
+            best_percent = percent
+            for key in label_keys:
+                if item.get(key):
+                    best = str(item.get(key))
+                    break
+            else:
+                best = None
+    return best, best_percent
+
+
+def _snapshot(summary: dict, fans_portrait: dict, fans_profile: dict, notes_rate: dict) -> dict:
     data = (summary or {}).get("data") or {}
+    fp = (fans_portrait or {}).get("data") or {}
+    profile = (fans_profile or {}).get("data") or {}
     nr = (notes_rate or {}).get("data") or {}
-    price_info = data.get("priceInfoList") or data.get("price") or data.get("priceInfo")
+    price_info = (
+        data.get("priceInfoList") or data.get("price") or data.get("priceInfo")
+        or nr.get("priceInfoList") or nr.get("price") or nr.get("priceInfo")
+    )
+    dominant_age_group, dominant_age_percent = _top_bucket(profile.get("ages"), "group", "name")
+    top_province, top_province_percent = _top_bucket(profile.get("provinces"), "name", "group")
+    top_city, top_city_percent = _top_bucket(profile.get("cities"), "name", "group")
+    top_interest, top_interest_percent = _top_bucket(profile.get("interests"), "name", "group")
+    gender = profile.get("gender") or {}
     return {
-        "followers": _int(data.get("fansNum") or data.get("fans")),
-        "engagementRate": _float(data.get("interactionRate") or data.get("engagementRate")),
-        "avgLikes": _int(nr.get("averageLikes") or nr.get("avgLikes")),
-        "avgComments": _int(nr.get("averageComments") or nr.get("avgComments")),
-        "avgCollects": _int(nr.get("averageCollects") or nr.get("avgCollects")),
-        "avgShares": _int(nr.get("averageShares") or nr.get("avgShares")),
-        "avgViews": _int(nr.get("averageViews") or nr.get("avgViews")),
+        "followers": _int(fp.get("fansNum") or fp.get("fans") or data.get("fansNum") or data.get("fans")),
+        "engagementRate": _float(
+            nr.get("interactionRate") or data.get("interactionRate") or data.get("engagementRate")
+        ),
+        "avgLikes": _int(nr.get("averageLikes") or nr.get("avgLikes") or nr.get("likeMedian")),
+        "avgComments": _int(nr.get("averageComments") or nr.get("avgComments") or nr.get("commentMedian")),
+        "avgCollects": _int(nr.get("averageCollects") or nr.get("avgCollects") or nr.get("collectMedian")),
+        "avgShares": _int(nr.get("averageShares") or nr.get("avgShares") or nr.get("shareMedian")),
+        "avgViews": _int(
+            nr.get("averageViews") or nr.get("avgViews") or nr.get("impMedian") or nr.get("readMedian")
+        ),
         "hitRatio": _float(nr.get("hitRatio") or nr.get("popularRate")),
         "priceNote": _price_note(price_info),
         "priceInfoList": price_info,
+        "femalePercent": _float(gender.get("female")),
+        "malePercent": _float(gender.get("male")),
+        "dominantAgeGroup": dominant_age_group,
+        "dominantAgePercent": dominant_age_percent,
+        "topProvince": top_province,
+        "topProvincePercent": top_province_percent,
+        "topCity": top_city,
+        "topCityPercent": top_city_percent,
+        "topInterest": top_interest,
+        "topInterestPercent": top_interest_percent,
+        "profileDateKey": profile.get("dateKey"),
     }
 
 
@@ -110,8 +174,21 @@ def _classify_self_info(info: Any) -> str | None:
     code = info.get("code") or info.get("result")
     msg = str(info.get("msg") or info.get("message") or "")
     data = info.get("data") or {}
-    if isinstance(data, dict) and (data.get("userId") or data.get("user_id")):
-        return None
+    if isinstance(data, dict):
+        if data.get("userId") or data.get("user_id"):
+            return None
+        role_infos = data.get("roleInfoList") or []
+        if isinstance(role_infos, list):
+            for item in role_infos:
+                if not isinstance(item, dict):
+                    continue
+                if (
+                    item.get("userId")
+                    or item.get("user_id")
+                    or item.get("parentUserId")
+                    or item.get("buserId")
+                ):
+                    return None
     if code in (401, 403, "401", "403", "NEED_LOGIN", "UNAUTHORIZED", "NOT_LOGIN"):
         return f"self_info_auth_denied code={code} msg={msg}"
     if "login" in msg.lower() or "登录" in msg:
@@ -152,27 +229,47 @@ def run(args: argparse.Namespace) -> int:
     cookie_diag = _classify_self_info(self_info) if self_err is None else f"self_info_call: {self_err}"
     cookie_alive = cookie_diag is None
 
-    # --- 2) 跑 4 个详情接口，收集每个的报错（这些走 x-s 签名，容易挂在 JS 引擎/签名） ---
+    # --- 2) 跑 5 个详情接口，收集每个的报错（这些走 x-s 签名，容易挂在 JS 引擎/签名） ---
     errors: dict[str, str] = {}
-    summary, fans_portrait, fans_history, notes_rate = {}, {}, {}, {}
+    summary, fans_portrait, fans_profile, fans_history, notes_rate = {}, {}, {}, {}, {}
 
     summary, e = _call(api, "get_user_detail", args.user_id, cookies)
     if e: errors["summary"] = e
     summary = summary or {}
+    api_err = _resp_error(summary)
+    if api_err: errors["summary"] = api_err
 
     fans_portrait, e = _call(api, "get_user_fans_detail", args.user_id, cookies)
     if e: errors["fansPortrait"] = e
     fans_portrait = fans_portrait or {}
+    api_err = _resp_error(fans_portrait)
+    if api_err: errors["fansPortrait"] = api_err
+
+    fans_profile, e = _call(api, "get_user_fans_profile", args.user_id, cookies)
+    if e: errors["fansProfile"] = e
+    fans_profile = fans_profile or {}
+    api_err = _resp_error(fans_profile)
+    if api_err: errors["fansProfile"] = api_err
 
     fans_history, e = _call(api, "get_user_fans_history", args.user_id, cookies)
     if e: errors["fansHistory"] = e
     fans_history = fans_history or {}
+    api_err = _resp_error(fans_history)
+    if api_err: errors["fansHistory"] = api_err
 
     notes_rate, e = _call(api, "get_user_notes_detail", args.user_id, cookies)
     if e: errors["notesRate"] = e
     notes_rate = notes_rate or {}
+    api_err = _resp_error(notes_rate)
+    if api_err: errors["notesRate"] = api_err
 
-    all_detail_failed = (not summary) and (not fans_portrait) and (not fans_history) and (not notes_rate)
+    all_detail_failed = not any((
+        _resp_ok(summary),
+        _resp_ok(fans_portrait),
+        _resp_ok(fans_profile),
+        _resp_ok(fans_history),
+        _resp_ok(notes_rate),
+    ))
 
     if all_detail_failed:
         # 全挂了 —— 根据 cookie_alive 做正确分类，避免冤杀 cookie
@@ -206,9 +303,10 @@ def run(args: argparse.Namespace) -> int:
         "userId": args.user_id,
         "summary": summary,
         "fansPortrait": fans_portrait,
+        "fansProfile": fans_profile,
         "fansHistory": fans_history,
         "notesRate": notes_rate,
-        "snapshot": _snapshot(summary, notes_rate),
+        "snapshot": _snapshot(summary, fans_portrait, fans_profile, notes_rate),
         "cookieAlive": cookie_alive,
     }
     if errors:
